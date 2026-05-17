@@ -49,6 +49,25 @@ h2 {
     transition: transform 0.3s ease;
 }
 
+.animated {
+  border: 1px solid black;
+  animation: gra 5s linear infinite;
+  background: linear-gradient(90deg, #ff0080, #bb4fff, #ff9d14);
+  background-size: 300% 300%;
+}
+
+@keyframes gra {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
 .back-link:hover {
     transform: scale(1.1);
 }

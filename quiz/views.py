@@ -11,7 +11,6 @@ def quiz_list_view(request):
     sort_by = request.GET.get('sort', 'created_at') 
     creator_name = request.GET.get('creator')
     topic = request.GET.get('topic')
-
     quizzes = Quiz.objects.all()
 
     if creator_name:

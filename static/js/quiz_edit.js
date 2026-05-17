@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', function () {
       const reader = new FileReader();
       reader.onload = function(ev) {
         preview.src = ev.target.result;
-        preview.style.display = 'none'; // скрыто по умолчанию
+        preview.style.display = 'none'; 
       };
       reader.readAsDataURL(fileInput.files[0]);
     } else {

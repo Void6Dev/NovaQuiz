@@ -14,8 +14,18 @@ def session_list(request):
     sort_by = request.GET.get('sort', 'created_at') 
     host_name = request.GET.get('host')
     quiz = request.GET.get('quiz.title')
+    session_started = request.GET.get('has_started')
     
     sessions = Session.objects.all()
+    
+    context = {
+        'host': host_name,
+        'hosted_quiz': quiz,
+        'sort_by': sort_by,
+        'sessions': sessions,
+        'has_started': session_started,
+    }
+    return render(request, 'quiz_user/sessions.html', context)
 
 @csrf_exempt
 @require_POST
@@ -107,7 +117,7 @@ def session_play(request, session_id):
 
     question_index = int(request.GET.get('q', 0))
     if question_index >= total:
-        return redirect('session_results', session_id=session.id)
+        return redirect('session_wait_for_other', session_id=session.id)
 
     question = questions[question_index]
     answers = list(question.answers.all())
@@ -165,10 +175,29 @@ def submit_answer_view(request, session_id):
         return JsonResponse({'status': 'error', 'message': 'Неверные данные'})
 
 
+@login_required
+def session_wait_for_other(request, session_id):
+    session = get_object_or_404(Session, id=session_id)
+
+    total_players = session.players.filter(is_kicked=False).count()
+    answered_players = PlayerAnswer.objects.filter(
+        session=session,
+    ).values_list("player", flat=True).distinct().count()
+
+    if answered_players >= total_players:
+        return redirect("session_results", session_id=session.id)
+
+    return render(request, "session/session_wait_for_other.html", {
+        "session": session,
+        "total_players": total_players,
+        "answered_players": answered_players,
+    })
+
 
 @login_required
 def session_results(request, session_id):
     session = get_object_or_404(Session, id=session_id)
+    
     players = session.players.filter(is_kicked=False).order_by('-score', 'joined_at')
     return render(request, 'session/session_results.html', {
         'session': session,

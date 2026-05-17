@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+
+<ul class="session-list">
+        {% for session in sessions %}
+            <li>  
+                {{ session.host }}
+                {{ session.session }}
+                {% if session.has_started != True %}
+                    Началась
+                {% elif session.has_started %}
+                    Еще не началась
+                {% elif session.has_ended %}
+                    Завершена
+                {% endif %}
+            </li>
+        {% empty %}
+            <li class="empty-message">Ничего не найдено</li>
+        {% endfor %}
+</ul>
+
+{% endblock %}
