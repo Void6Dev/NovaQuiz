@@ -8,7 +8,7 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-+3!b1&-2vmticmywcis
 DEBUG = os.getenv('DJANGO_DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = [
-    'void2.pythonanywhere.com',
+    'diov2.pythonanywhere.com',
     '127.0.0.1',
     'localhost',
     '192.168.50.247',
@@ -96,7 +96,7 @@ CORS_ALLOWED_ORIGINS = [
 CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS = [
-    'https://void2.pythonanywhere.com',
+    'https://diov2.pythonanywhere.com',
     'http://127.0.0.1:5500',
     'http://localhost:5500',
     'http://127.0.0.1:8080',
