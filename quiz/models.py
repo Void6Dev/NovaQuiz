@@ -35,12 +35,30 @@ class Question(models.Model):
     text = models.TextField(blank=True)
     image = models.ImageField(upload_to="quiz_questions_images/", null=True, blank=True)
     image_url = models.URLField(blank=True, null=True)
+    time_limit = models.PositiveSmallIntegerField(default=30)
+    points = models.PositiveSmallIntegerField(default=100)
+    order = models.PositiveIntegerField(default=0)
+    shuffle_options = models.BooleanField(default=False)
+    question_type = models.CharField(max_length=10, default='single')
+    correct_answer = models.TextField(blank=True, default='')
+
+    class Meta:
+        ordering = ['order', 'id']
 
 class Answer(models.Model):
     question = models.ForeignKey(Question, related_name='answers', on_delete=models.CASCADE)
     text = models.CharField(max_length=255, blank=True)
     image = models.ImageField(upload_to="quiz_answers_images/", null=True, blank=True)
     image_url = models.URLField(blank=True, null=True)
-    is_correct = models.BooleanField(default=False) 
-    
+    is_correct = models.BooleanField(default=False)
+
+
+class PracticeRecord(models.Model):
+    user  = models.ForeignKey(User, on_delete=models.CASCADE, related_name='practice_records')
+    quiz  = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='practice_records')
+    earned_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'quiz')
+
     
