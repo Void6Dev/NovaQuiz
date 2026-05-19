@@ -17,7 +17,6 @@ Including another URLconf
 import mimetypes
 from django.contrib import admin
 from django.urls import path, include, re_path
-from django.conf.urls.static import static
 from django.conf import settings
 from django.views.static import serve
 
@@ -30,7 +29,7 @@ def serve_index(request):
     return serve(request, 'index.html', document_root=FRONTEND_DIR)
 
 urlpatterns = (
-    static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    [path('media/<path:path>', serve, {'document_root': settings.MEDIA_ROOT})]
     + [
         path('admin/', admin.site.urls),
         path('api/', include('api.urls')),
