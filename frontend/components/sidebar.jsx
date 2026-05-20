@@ -54,7 +54,11 @@ function Sidebar({ current, onLogout }) {
       <a className="nav-item">
         <Icon name="star" size={17} /> <span>Starred</span>
       </a>
-      <a className="nav-item">
+      <a
+        className={`nav-item ${current === 'shared' ? 'nav-item--active' : ''}`}
+        href={window.ROUTES.shared}
+        onClick={(e) => { e.preventDefault(); nav('shared'); }}
+      >
         <Icon name="users" size={17} /> <span>Shared with me</span>
       </a>
 

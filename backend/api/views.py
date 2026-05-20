@@ -431,6 +431,13 @@ def api_quiz_list(request):
         if not request.user.is_authenticated:
             return JsonResponse({'error': 'Not authenticated'}, status=401)
         qs = qs.filter(creator=request.user)
+    elif request.GET.get('shared') == '1':
+        if not request.user.is_authenticated:
+            return JsonResponse({'error': 'Not authenticated'}, status=401)
+        workspace_owners = WorkspaceInvitation.objects.filter(
+            to_email=request.user.email, status='accepted'
+        ).values_list('from_user', flat=True)
+        qs = qs.filter(creator__in=workspace_owners)
     elif creator:
         qs = qs.filter(creator__username__icontains=creator)
     if topic:

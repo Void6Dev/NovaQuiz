@@ -21,6 +21,7 @@ const ROUTES = {
   sessions:  'sessions.html',
   analytics: 'analytics.html',
   settings:  'settings.html',
+  shared:    'shared.html',
 };
 
 function navigate(screen, params) {
