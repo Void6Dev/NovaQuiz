@@ -337,7 +337,7 @@ def api_workspace_sent_invitations(request):
 @login_required
 def api_workspace_received_invitations(request):
     """Get invitations sent TO the current user."""
-    invitations = WorkspaceInvitation.objects.filter(to_user=request.user).order_by('-created_at')
+    invitations = WorkspaceInvitation.objects.filter(to_email=request.user.email).order_by('-created_at')
     return JsonResponse({
         'received': [
             {
@@ -361,15 +361,14 @@ def api_workspace_accept_invite(request, invite_id):
 
     inv = get_object_or_404(WorkspaceInvitation, id=invite_id)
 
-    # Must be the recipient
-    if inv.to_user != request.user:
+    if inv.to_email != request.user.email:
         return JsonResponse({'error': 'Access denied'}, status=403)
 
-    # Can only accept pending invitations
     if inv.status != 'pending':
         return JsonResponse({'error': f'Invitation already {inv.status}'}, status=400)
 
     inv.status = 'accepted'
+    inv.to_user = request.user
     inv.save()
 
     return JsonResponse({
@@ -387,11 +386,9 @@ def api_workspace_decline_invite(request, invite_id):
 
     inv = get_object_or_404(WorkspaceInvitation, id=invite_id)
 
-    # Must be the recipient
-    if inv.to_user != request.user:
+    if inv.to_email != request.user.email:
         return JsonResponse({'error': 'Access denied'}, status=403)
 
-    # Can only decline pending invitations
     if inv.status != 'pending':
         return JsonResponse({'error': f'Invitation already {inv.status}'}, status=400)
 
