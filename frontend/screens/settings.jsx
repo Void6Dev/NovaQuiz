@@ -610,7 +610,8 @@ function WorkspaceSettings() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviting, setInviting] = useState(false);
   const [inviteMsg, setInviteMsg] = useState('');
-  const [invitations, setInvitations] = useState([]);
+  const [sent, setSent] = useState([]);
+  const [received, setReceived] = useState([]);
   const [loadingInvites, setLoadingInvites] = useState(true);
 
   const setPref = (key, val) => {
@@ -620,10 +621,13 @@ function WorkspaceSettings() {
   };
 
   useEffect(() => {
-    window.API.get('/workspace/invitations/')
-      .then(data => setInvitations(data.invitations || []))
-      .catch(() => {})
-      .finally(() => setLoadingInvites(false));
+    Promise.all([
+      window.API.get('/workspace/invitations/sent/').catch(() => ({ sent: [] })),
+      window.API.get('/workspace/invitations/received/').catch(() => ({ received: [] })),
+    ]).then(([s, r]) => {
+      setSent(s.sent || []);
+      setReceived(r.received || []);
+    }).finally(() => setLoadingInvites(false));
   }, []);
 
   const sendInvite = async (e) => {
@@ -632,10 +636,10 @@ function WorkspaceSettings() {
     setInviting(true);
     setInviteMsg('');
     try {
-      const result = await window.API.post('/workspace/invite/', { email: inviteEmail });
-      setInviteMsg('✓ ' + result.message);
+      await window.API.post('/workspace/invite/', { email: inviteEmail });
+      setInviteMsg('✓ Invite sent');
       setInviteEmail('');
-      setInvitations(prev => [...prev, { to_email: inviteEmail, status: 'pending', created_at: new Date().toISOString() }]);
+      setSent(prev => [...prev, { to_email: inviteEmail, status: 'pending', created_at: new Date().toISOString() }]);
       setTimeout(() => setInviteMsg(''), 3000);
     } catch (e) {
       setInviteMsg(e.message || 'Failed to send invite.');
@@ -646,7 +650,19 @@ function WorkspaceSettings() {
   const cancelInvite = (invId) => {
     if (!confirm('Cancel this invitation?')) return;
     window.API.post(`/workspace/invitations/${invId}/cancel/`, {})
-      .then(() => setInvitations(prev => prev.filter(i => i.id !== invId)))
+      .then(() => setSent(prev => prev.filter(i => i.id !== invId)))
+      .catch(e => alert(e.message));
+  };
+
+  const acceptInvite = (invId) => {
+    window.API.post(`/workspace/invitations/${invId}/accept/`, {})
+      .then(() => setReceived(prev => prev.map(i => i.id === invId ? { ...i, status: 'accepted' } : i)))
+      .catch(e => alert(e.message));
+  };
+
+  const declineInvite = (invId) => {
+    window.API.post(`/workspace/invitations/${invId}/decline/`, {})
+      .then(() => setReceived(prev => prev.map(i => i.id === invId ? { ...i, status: 'declined' } : i)))
       .catch(e => alert(e.message));
   };
 
@@ -712,16 +728,16 @@ function WorkspaceSettings() {
           )}
         </form>
 
-        {!loadingInvites && invitations.length > 0 && (
+        {!loadingInvites && sent.length > 0 && (
           <div style={{ marginTop: 16 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
-              Pending invitations ({invitations.length})
+              Sent invitations ({sent.length})
             </div>
             <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-              {invitations.map((inv, i) => (
+              {sent.map((inv, i) => (
                 <div key={inv.id || i} style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '12px 16px', borderBottom: i < invitations.length - 1 ? '1px solid var(--border)' : 'none',
+                  padding: '12px 16px', borderBottom: i < sent.length - 1 ? '1px solid var(--border)' : 'none',
                 }}>
                   <div>
                     <div style={{ fontSize: 13 }}>{inv.to_email}</div>
@@ -746,6 +762,57 @@ function WorkspaceSettings() {
                       >
                         <Icon name="x" size={14} />
                       </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!loadingInvites && received.length > 0 && (
+          <div style={{ marginTop: 16 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
+              Incoming invitations ({received.filter(i => i.status === 'pending').length})
+            </div>
+            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+              {received.map((inv, i) => (
+                <div key={inv.id || i} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '12px 16px', borderBottom: i < received.length - 1 ? '1px solid var(--border)' : 'none',
+                }}>
+                  <div>
+                    <div style={{ fontSize: 13 }}>From <strong>{inv.from_name || inv.from_user}</strong></div>
+                    <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 2 }}>
+                      @{inv.from_user} · {new Date(inv.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {inv.status === 'pending' ? (
+                      <>
+                        <button
+                          className="btn btn--primary"
+                          onClick={() => acceptInvite(inv.id)}
+                          style={{ padding: '5px 12px', fontSize: 12 }}
+                        >
+                          Accept
+                        </button>
+                        <button
+                          className="btn btn--ghost"
+                          onClick={() => declineInvite(inv.id)}
+                          style={{ padding: '5px 12px', fontSize: 12 }}
+                        >
+                          Decline
+                        </button>
+                      </>
+                    ) : (
+                      <span className="pill" style={{
+                        background: inv.status === 'accepted' ? 'oklch(85% 0.10 145)' : 'oklch(90% 0.04 0)',
+                        color: inv.status === 'accepted' ? 'oklch(30% 0.10 145)' : 'oklch(40% 0.04 0)',
+                        fontSize: 11, fontWeight: 600,
+                      }}>
+                        {inv.status}
+                      </span>
                     )}
                   </div>
                 </div>
