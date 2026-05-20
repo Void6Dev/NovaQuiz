@@ -182,16 +182,17 @@ function ProfileSettings({ onLogout }) {
   const uploadAvatar = (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    if (!f.type.startsWith('image/')) { alert('Please select an image file.'); return; }
-    if (f.size > 5 * 1024 * 1024)    { alert('Image must be under 5 MB.'); return; }
+    if (!f.type.startsWith('image/')) { showToast('Please select an image file.', 'error'); return; }
+    if (f.size > 5 * 1024 * 1024)    { showToast('Image must be under 5 MB.', 'error'); return; }
     const fd = new FormData();
     fd.append('avatar', f);
     window.API.upload('/auth/avatar/', fd)
       .then(data => {
         setAvatar(data.avatar);
         window.API.saveUser({ ...window.CURRENT_USER, avatar: data.avatar });
+        showToast('Avatar updated', 'success');
       })
-      .catch(err => alert(err.message));
+      .catch(err => showToast(err.message, 'error'));
     e.target.value = '';
   };
 
@@ -201,7 +202,7 @@ function ProfileSettings({ onLogout }) {
       window.API.clearUser();
       window.navigate('landing');
     } catch (e) {
-      alert(e.message || 'Failed to delete account.');
+      showToast(e.message || 'Failed to delete account.', 'error');
     }
   };
 
@@ -453,6 +454,8 @@ function AppearanceSettings({ theme, onTheme }) {
     const next = { ...prefs, [key]: val };
     setPrefs(next);
     savePrefs(next);
+    if (key === 'reduceMotion')   document.documentElement.classList.toggle('reduce-motion', !!val);
+    if (key === 'compactDensity') document.documentElement.classList.toggle('compact', !!val);
   };
 
   return (
@@ -651,19 +654,19 @@ function WorkspaceSettings() {
     if (!confirm('Cancel this invitation?')) return;
     window.API.post(`/workspace/invitations/${invId}/cancel/`, {})
       .then(() => setSent(prev => prev.filter(i => i.id !== invId)))
-      .catch(e => alert(e.message));
+      .catch(e => showToast(e.message, 'error'));
   };
 
   const acceptInvite = (invId) => {
     window.API.post(`/workspace/invitations/${invId}/accept/`, {})
       .then(() => setReceived(prev => prev.map(i => i.id === invId ? { ...i, status: 'accepted' } : i)))
-      .catch(e => alert(e.message));
+      .catch(e => showToast(e.message, 'error'));
   };
 
   const declineInvite = (invId) => {
     window.API.post(`/workspace/invitations/${invId}/decline/`, {})
       .then(() => setReceived(prev => prev.map(i => i.id === invId ? { ...i, status: 'declined' } : i)))
-      .catch(e => alert(e.message));
+      .catch(e => showToast(e.message, 'error'));
   };
 
   return (

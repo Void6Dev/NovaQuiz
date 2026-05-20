@@ -34,7 +34,7 @@ function Dashboard({ onNav }) {
       .then(() => {
         setMine(qs => qs.filter(q => q.id !== id));
       })
-      .catch(err => alert(err.message));
+      .catch(err => showToast(err.message, 'error'));
   };
 
   const duplicateQuiz = (q) => {
@@ -43,7 +43,7 @@ function Dashboard({ onNav }) {
         const quiz = window.API.fromBackendQuiz(newQ);
         setMine(qs => [quiz, ...qs]);
       })
-      .catch(err => alert(err.message));
+      .catch(err => showToast(err.message, 'error'));
   };
 
   const setCover = (id, dataURL) => {
@@ -69,22 +69,17 @@ function Dashboard({ onNav }) {
   const switchTab = (t) => { setTab(t); setSearch(''); setAuthor(''); setFilter('all'); };
 
   return (
-    <div className="page fade-in" data-screen-label="02 Dashboard">
-      <PageHeader title={`Hello, ${(u.name || u.username || 'there').split(' ')[0]}`} subtitle="Author, run, and analyze — all in one place.">
-        <button className="btn btn--secondary" onClick={() => onNav('sessions')}>
-          <Icon name="users" size={15} /> Browse sessions
-        </button>
-        <button className="btn btn--primary" onClick={() => onNav('editor', { newQuiz: true })}>
-          <Icon name="plus" size={15} /> New quiz
-        </button>
+    <div className="page fade-in" data-screen-label="02 Browse">
+      <PageHeader
+        title={tab === 'mine' ? `My quizzes` : 'Browse'}
+        subtitle={tab === 'mine' ? `${myQuizzes.length} quiz${myQuizzes.length !== 1 ? 'zes' : ''} in your library.` : 'Discover public quizzes from the community.'}
+      >
+        {tab === 'mine' && (
+          <button className="btn btn--primary" onClick={() => onNav('editor', { newQuiz: true })}>
+            <Icon name="plus" size={15} /> New quiz
+          </button>
+        )}
       </PageHeader>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 32 }}>
-        <CreditsStat credits={u.credits} />
-        <Stat label="Total plays" value="—" hint="coming soon" />
-        <Stat label="Avg. score"  value="—" hint="coming soon" />
-        <Stat label="My quizzes" value={myQuizzes.length} hint={loading ? 'Loading…' : `${myQuizzes.length} total`} />
-      </div>
 
       {/* Tab switcher */}
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20 }}>
@@ -93,8 +88,8 @@ function Dashboard({ onNav }) {
           border: '1px solid var(--border)', padding: 4, gap: 2,
         }}>
           {[
-            { id: 'explore', label: 'Explore',    icon: 'grid'   },
-            { id: 'mine',    label: 'My Quizzes', icon: 'folder' },
+            { id: 'explore', label: 'Browse',     icon: 'compass' },
+            { id: 'mine',    label: 'My Quizzes', icon: 'folder'  },
           ].map(t => (
             <button
               key={t.id}
@@ -285,7 +280,7 @@ function QuizCard({ quiz, isOwn, onOpen, onPlay, onRunLive, onDelete, onDuplicat
     const f = e.target.files?.[0];
     if (!f) return;
     if (!f.type.startsWith('image/')) return;
-    if (f.size > 4 * 1024 * 1024) { alert('Please pick an image under 4 MB.'); return; }
+    if (f.size > 4 * 1024 * 1024) { showToast('Please pick an image under 4 MB.', 'error'); return; }
     const reader = new FileReader();
     reader.onload = () => onSetCover(reader.result);
     reader.readAsDataURL(f);

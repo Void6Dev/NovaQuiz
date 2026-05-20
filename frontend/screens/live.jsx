@@ -1,5 +1,30 @@
 // === Live mode (host view) ===
 
+function QRCodeCanvas({ value, size }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!ref.current || !value || !window.qrcode) return;
+    const qr = window.qrcode(0, 'M');
+    qr.addData(value);
+    qr.make();
+    const canvas = ref.current;
+    const ctx = canvas.getContext('2d');
+    const cells = qr.getModuleCount();
+    const cell = Math.floor(size / cells);
+    const actual = cell * cells;
+    canvas.width = actual; canvas.height = actual;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, actual, actual);
+    ctx.fillStyle = '#000';
+    for (let r = 0; r < cells; r++) {
+      for (let c = 0; c < cells; c++) {
+        if (qr.isDark(r, c)) ctx.fillRect(c * cell, r * cell, cell, cell);
+      }
+    }
+  }, [value, size]);
+  return <canvas ref={ref} style={{ borderRadius: 8, display: 'block' }} />;
+}
+
 function hashColor(s) {
   let h = 0;
   for (let i = 0; i < (s || '').length; i++) h = (h * 37 + s.charCodeAt(i)) & 0xffff;
@@ -126,7 +151,7 @@ function LiveHost({ onNav }) {
 
   const startQuiz = () => {
     if (questionsRef.current.length === 0) {
-      alert('В квизе нет вопросов. Добавьте хотя бы один вопрос в редакторе.');
+      showToast('No questions in this quiz — add some in the editor first.', 'error');
       return;
     }
     window.API.post('/sessions/' + sessionId + '/start/', {
@@ -136,7 +161,7 @@ function LiveHost({ onNav }) {
       qIdxRef.current = 0;
       setQIdx(0);
       setPhase('question');
-    }).catch(err => alert(err.message));
+    }).catch(err => showToast(err.message, 'error'));
   };
 
   const nextQuestion = () => {
@@ -252,8 +277,23 @@ function LiveLobby({ pin, quizTitle, participants, onStart, onExit, onKick, host
             {pin}
           </div>
 
-          <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
-            <button className="btn btn--secondary" onClick={() => navigator.clipboard?.writeText(pin)}><Icon name="copy" size={14} /> Copy code</button>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 24, alignItems: 'center' }}>
+            <button className="btn btn--secondary" onClick={() => { navigator.clipboard?.writeText(pin); showToast('Code copied!', 'success'); }}>
+              <Icon name="copy" size={14} /> Copy code
+            </button>
+            <button className="btn btn--secondary" onClick={() => { const u = window.location.origin + '/sessions.html?code=' + pin; navigator.clipboard?.writeText(u); showToast('Link copied!', 'success'); }}>
+              <Icon name="share" size={14} /> Copy link
+            </button>
+          </div>
+
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Scan to join</div>
+            <div style={{
+              display: 'inline-block', padding: 10, background: '#fff',
+              borderRadius: 12, border: '1px solid var(--border)',
+            }}>
+              <QRCodeCanvas value={window.location.origin + '/sessions.html?code=' + pin} size={140} />
+            </div>
           </div>
 
           <HostSettings settings={hostSettings} onChange={onHostSettingsChange} />

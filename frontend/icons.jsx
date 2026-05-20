@@ -40,6 +40,10 @@ const Icon = ({ name, size = 18, ...rest }) => {
     logout: <><path d="M9 21H5A2 2 0 0 1 3 19V5A2 2 0 0 1 5 3H9"/><path d="M16 17L21 12L16 7"/><path d="M21 12H9"/></>,
     more: <><circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none"/></>,
     upload: <><path d="M21 15V19A2 2 0 0 1 19 21H5A2 2 0 0 1 3 19V15"/><path d="M17 8L12 3L7 8"/><path d="M12 3V15"/></>,
+    compass: <><circle cx="12" cy="12" r="10"/><path d="M16.24 7.76L14.12 14.12L7.76 16.24L9.88 9.88L16.24 7.76Z"/></>,
+    info: <><circle cx="12" cy="12" r="10"/><path d="M12 16V12"/><circle cx="12" cy="8" r="0.5" fill="currentColor"/></>,
+    shuffle: <><path d="M16 3H21V8"/><path d="M4 20L21 3"/><path d="M21 16V21H16"/><path d="M15 15L21 21"/><path d="M4 4L9 9"/></>,
+    import: <><path d="M21 15V19A2 2 0 0 1 19 21H5A2 2 0 0 1 3 19V15"/><path d="M7 10L12 15L17 10"/><path d="M12 15V3"/></>,
   };
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" {...rest}>

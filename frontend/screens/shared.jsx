@@ -19,7 +19,7 @@ function SharedWithMe({ onNav }) {
       .then(newQ => {
         window.navigate('editor', { quizId: newQ.id });
       })
-      .catch(err => alert(err.message));
+      .catch(err => showToast(err.message, 'error'));
   };
 
   const filtered = quizzes.filter(q => {

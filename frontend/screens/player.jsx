@@ -1,11 +1,90 @@
 // === Player view (solo practice mode — loads quiz once, runs fully offline) ===
 
+function _playAnswerSound(correct) {
+  try {
+    const prefs = JSON.parse(localStorage.getItem('quiz:prefs') || '{}');
+    if (prefs.soundEffects === false) return;
+    const ctx  = new (window.AudioContext || window.webkitAudioContext)();
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    if (correct) {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+      osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.12);
+      osc.frequency.setValueAtTime(783.99, ctx.currentTime + 0.22);
+    } else {
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(220, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(110, ctx.currentTime + 0.28);
+    }
+    gain.gain.setValueAtTime(0.22, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.45);
+  } catch {}
+}
+
+function _launchConfetti() {
+  const canvas = document.createElement('canvas');
+  Object.assign(canvas.style, {
+    position: 'fixed', top: '0', left: '0',
+    width: '100%', height: '100%',
+    pointerEvents: 'none', zIndex: '9999',
+  });
+  document.body.appendChild(canvas);
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const ctx = canvas.getContext('2d');
+  const colors = ['#f87171','#fb923c','#fbbf24','#4ade80','#34d399','#60a5fa','#a78bfa','#f472b6'];
+  const particles = Array.from({ length: 180 }, () => ({
+    x: Math.random() * canvas.width,
+    y: -20 - Math.random() * canvas.height * 0.4,
+    w: 6 + Math.random() * 10,
+    h: 4 + Math.random() * 6,
+    color: colors[Math.floor(Math.random() * colors.length)],
+    vx: (Math.random() - 0.5) * 3.5,
+    vy: 1.5 + Math.random() * 4,
+    angle: Math.random() * Math.PI * 2,
+    spin: (Math.random() - 0.5) * 0.18,
+    wobble: Math.random() * Math.PI * 2,
+  }));
+  let raf;
+  const tick = () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    let alive = false;
+    for (const p of particles) {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.055;
+      p.angle += p.spin;
+      p.wobble += 0.06;
+      p.vx += Math.sin(p.wobble) * 0.04;
+      if (p.y < canvas.height + 30) alive = true;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.angle);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+    }
+    if (alive) raf = requestAnimationFrame(tick);
+    else canvas.remove();
+  };
+  raf = requestAnimationFrame(tick);
+  setTimeout(() => { cancelAnimationFrame(raf); canvas.remove(); }, 6000);
+}
+
 function Player({ onNav }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [questions, setQuestions] = useState(null);
   const [quizTitle, setQuizTitle] = useState('');
+  const [quizDesc, setQuizDesc] = useState('');
   const [gameKey, setGameKey] = useState(0);
+  const [started, setStarted] = useState(false);
+  const [shuffle, setShuffle] = useState(false);
   const quizId = window.getQueryParams().quizId;
 
   useEffect(() => {
@@ -17,6 +96,7 @@ function Player({ onNav }) {
     window.API.get('/quizzes/' + quizId + '/')
       .then(data => {
         setQuizTitle(data.title || 'Untitled quiz');
+        setQuizDesc(data.description || '');
         const qs = (data.questions || []).map(window.API.fromBackendQuestion);
         if (!qs.length) {
           setError('This quiz has no questions yet. Add some in the editor first.');
@@ -61,6 +141,54 @@ function Player({ onNav }) {
     </div>
   );
 
+  if (!started) {
+    const finalQs = shuffle ? [...questions].sort(() => Math.random() - 0.5) : questions;
+    return (
+      <div style={{ height: '100vh', display: 'grid', placeItems: 'center', background: 'var(--bg)' }}>
+        <div className="slide-up" style={{ textAlign: 'center', maxWidth: 440, padding: '0 24px' }}>
+          <div style={{
+            width: 72, height: 72, borderRadius: 20,
+            background: 'var(--accent)', color: 'var(--accent-fg)',
+            display: 'grid', placeItems: 'center', margin: '0 auto 24px',
+          }}>
+            <Icon name="play" size={30} strokeWidth={2} />
+          </div>
+          <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', marginBottom: 8 }}>{quizTitle}</h1>
+          {quizDesc && (
+            <p style={{ fontSize: 15, color: 'var(--text-muted)', lineHeight: 1.55, marginBottom: 16 }}>{quizDesc}</p>
+          )}
+          <p style={{ fontSize: 14, color: 'var(--text-faint)', marginBottom: 32 }}>
+            {questions.length} question{questions.length !== 1 ? 's' : ''}
+          </p>
+
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '14px 18px', borderRadius: 'var(--r-lg)',
+            background: 'var(--surface)', border: '1px solid var(--border)',
+            marginBottom: 20, cursor: 'pointer',
+          }} onClick={() => setShuffle(s => !s)}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Icon name="shuffle" size={16} style={{ color: 'var(--text-muted)' }} />
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>Shuffle questions</div>
+                <div style={{ fontSize: 12, color: 'var(--text-faint)' }}>Randomize the order each time</div>
+              </div>
+            </div>
+            <Toggle on={shuffle} onChange={setShuffle} />
+          </div>
+
+          <button className="btn btn--primary btn--lg" style={{ width: '100%' }}
+            onClick={() => { setQuestions(finalQs); setStarted(true); setGameKey(k => k + 1); }}>
+            Start <Icon name="arrowRight" size={16} />
+          </button>
+          <button className="btn btn--ghost" style={{ marginTop: 10, width: '100%' }} onClick={() => onNav('dashboard')}>
+            Back
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <PlayerGame
       key={gameKey}
@@ -68,7 +196,7 @@ function Player({ onNav }) {
       quizTitle={quizTitle}
       quizId={quizId}
       onNav={onNav}
-      onPlayAgain={() => setGameKey(k => k + 1)}
+      onPlayAgain={() => { setStarted(false); setGameKey(k => k + 1); }}
     />
   );
 }
@@ -81,8 +209,14 @@ function PlayerGame({ questions, quizTitle, quizId, onNav, onPlayAgain }) {
   const [openAnswer, setOpenAnswer] = useState('');
   const [scores, setScores] = useState([]);
   const [timeLeft, setTimeLeft] = useState(questions[0].timeLimit);
+  const [streak, setStreak] = useState(0);
   const selectedMultiRef = React.useRef([]);
   const openAnswerRef = React.useRef('');
+  const phaseRef = React.useRef('question');
+  const currentIdxRef = React.useRef(0);
+
+  phaseRef.current = phase;
+  currentIdxRef.current = idx;
 
   const currentRaw = questions[idx];
   const current = React.useMemo(() => {
@@ -110,6 +244,42 @@ function PlayerGame({ questions, quizTitle, quizId, onNav, onPlayAgain }) {
     return () => clearInterval(tick);
   }, [idx, phase]);
 
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      const p = phaseRef.current;
+      const q = questions[currentIdxRef.current];
+      if (!q) return;
+      if (p === 'reveal') {
+        if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); next(); }
+        return;
+      }
+      if (p !== 'question') return;
+      const num = parseInt(e.key);
+      if (!isNaN(num) && num >= 1) {
+        if (q.type === 'single' || q.type === 'truefalse') {
+          const opt = q.options?.[num - 1];
+          if (opt) { setSelected(opt.id); setTimeout(() => commitAnswer(opt.id), 250); }
+        } else if (q.type === 'multi') {
+          const opt = q.options?.[num - 1];
+          if (opt) {
+            setSelectedMulti(prev => {
+              const next = prev.includes(opt.id) ? prev.filter(x => x !== opt.id) : [...prev, opt.id];
+              selectedMultiRef.current = next;
+              return next;
+            });
+          }
+        }
+      }
+      if ((e.key === ' ' || e.key === 'Enter') && q.type === 'multi') {
+        e.preventDefault();
+        commitAnswer(selectedMultiRef.current);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [questions]);
+
   const commitAnswer = (val) => {
     let correct = false;
     let award = 0;
@@ -128,6 +298,8 @@ function PlayerGame({ questions, quizTitle, quizId, onNav, onPlayAgain }) {
       award = current.points + timeBonus;
     }
     setScores(s => [...s, { correct, award, question: current.id }]);
+    setStreak(s => correct ? s + 1 : 0);
+    _playAnswerSound(correct);
     setPhase('answered');
     setTimeout(() => setPhase('reveal'), 600);
   };
@@ -183,6 +355,16 @@ function PlayerGame({ questions, quizTitle, quizId, onNav, onPlayAgain }) {
               fontSize: 13, fontWeight: 600, color: 'var(--text-muted)',
               maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>{quizTitle}</span>
+          )}
+          {streak >= 2 && (
+            <span className="scale-in" style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              padding: '3px 10px', borderRadius: 99,
+              background: 'oklch(92% 0.10 55)', color: 'oklch(35% 0.14 55)',
+              fontSize: 13, fontWeight: 700,
+            }}>
+              🔥 {streak}
+            </span>
           )}
           <span className="pill mono">
             <Icon name="star" size={12} /> {totalScore}
@@ -514,6 +696,11 @@ function PlayerResult({ scores, total, quizTitle, quizId, onExit, onPlayAgain })
   const [creditInfo, setCreditInfo] = useState(null); // null = loading
 
   useEffect(() => {
+    const prefs = JSON.parse(localStorage.getItem('quiz:prefs') || '{}');
+    if (prefs.confetti !== false && pct >= 70) _launchConfetti();
+  }, []);
+
+  useEffect(() => {
     if (!quizId) { setCreditInfo({ credits_earned: 0, already_rewarded: false, own_quiz: true }); return; }
     window.API.post('/quizzes/' + quizId + '/practice/', { correct })
       .then(data => {
@@ -531,6 +718,17 @@ function PlayerResult({ scores, total, quizTitle, quizId, onExit, onPlayAgain })
 
   return (
     <div className="player fade-in" data-screen-label="04b Player result">
+      <style>{`
+        .player { height: 100vh; display: flex; flex-direction: column; background: var(--bg); }
+        .player__header {
+          display: flex; align-items: center; gap: 16px;
+          padding: 16px 24px; border-bottom: 1px solid var(--border);
+        }
+        .player__stage {
+          flex: 1; display: grid; place-items: center;
+          padding: 40px 24px; overflow-y: auto;
+        }
+      `}</style>
       <div className="player__header">
         <button className="btn btn--ghost btn--icon" onClick={onExit}><Icon name="x" size={18} /></button>
         <div style={{ flex: 1, textAlign: 'center' }}>

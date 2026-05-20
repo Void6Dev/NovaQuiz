@@ -12,9 +12,14 @@ function Editor({ onNav }) {
   const [loading, setLoading]       = useState(true);
   const [coverSaved, setCoverSaved] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [importing, setImporting] = useState(false);
   const titleSaveTimer = React.useRef(null);
   const qSaveTimers    = React.useRef({});
-  const quizCoverRef   = React.useRef(null);
+  const quizCoverRef    = React.useRef(null);
+  const questionsRef    = React.useRef(questions);
+  useEffect(() => { questionsRef.current = questions; }, [questions]);
 
   // Load or create quiz on mount
   useEffect(() => {
@@ -52,6 +57,23 @@ function Editor({ onNav }) {
     }, 800);
     return () => clearTimeout(titleSaveTimer.current);
   }, [title, topic, description]);
+
+  // Keyboard navigation: ↑/↓ arrows move between questions when not in a text field
+  useEffect(() => {
+    const fn = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      e.preventDefault();
+      const qs = questionsRef.current;
+      setActiveId(id => {
+        const idx = qs.findIndex(q => q.id === id);
+        const next = e.key === 'ArrowUp' ? idx - 1 : idx + 1;
+        return (next >= 0 && next < qs.length) ? qs[next].id : id;
+      });
+    };
+    window.addEventListener('keydown', fn);
+    return () => window.removeEventListener('keydown', fn);
+  }, []);
 
   const active      = questions.find(q => q.id === activeId);
   const activeIndex = questions.findIndex(q => q.id === activeId);
@@ -160,6 +182,43 @@ function Editor({ onNav }) {
     }).catch(() => {});
   };
 
+  const doImport = async () => {
+    if (!quizIdRef.current || !importText.trim()) return;
+    const blocks = importText.split(/\n\s*---\s*\n|\n{2,}/).map(b => b.trim()).filter(Boolean);
+    const parsed = [];
+    for (const block of blocks) {
+      const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
+      if (!lines.length) continue;
+      let prompt = lines[0].replace(/^Q:\s*/i, '');
+      const opts = [];
+      for (let i = 1; i < lines.length; i++) {
+        const raw = lines[i].replace(/^A:\s*/i, '');
+        const correct = raw.startsWith('*') || raw.endsWith(' *') || raw.endsWith('*');
+        const text = raw.replace(/^\*\s*/, '').replace(/\s*\*$/, '').trim();
+        if (text) opts.push({ text, is_correct: correct });
+      }
+      if (prompt && opts.length >= 2) parsed.push({ prompt, opts });
+    }
+    if (!parsed.length) { showToast('No valid questions found. Check the format.', 'error'); return; }
+    setImporting(true);
+    let added = 0;
+    for (const { prompt, opts } of parsed) {
+      try {
+        const q = await window.API.post('/quizzes/' + quizIdRef.current + '/questions/add/', {
+          text: prompt, answers: opts, time_limit: 30, points: 100, question_type: 'single',
+        });
+        const newQ = { ...window.API.fromBackendQuestion(q), shuffleOptions: false };
+        setQuestions(qs => [...qs, newQ]);
+        if (added === 0) setActiveId(newQ.id);
+        added++;
+      } catch {}
+    }
+    setImporting(false);
+    setImportOpen(false);
+    setImportText('');
+    showToast(`Imported ${added} question${added !== 1 ? 's' : ''}`, 'success');
+  };
+
   const handleShare = () => {
     const url = window.location.origin + '/player.html?quizId=' + quizIdRef.current;
     if (navigator.clipboard) {
@@ -217,7 +276,7 @@ function Editor({ onNav }) {
               fd.append('image', f);
               window.API.upload('/quizzes/' + quizIdRef.current + '/image/', fd)
                 .then(() => { setCoverSaved(true); setTimeout(() => setCoverSaved(false), 2000); })
-                .catch(err => alert(err.message));
+                .catch(err => showToast(err.message, 'error'));
               e.target.value = '';
             }}
           />
@@ -258,11 +317,14 @@ function Editor({ onNav }) {
             <button onClick={() => addQuestion('single')} className="editor__add">
               <Icon name="plus" size={14} /> Add question
             </button>
+            <button onClick={() => setImportOpen(true)} className="editor__add" style={{ color: 'var(--text-faint)' }}>
+              <Icon name="import" size={14} /> Import
+            </button>
           </div>
         </div>
 
         <div className="editor__canvas">
-          {active && (
+          {active ? (
             <QuestionEditor
               question={active}
               index={activeIndex}
@@ -270,6 +332,24 @@ function Editor({ onNav }) {
               onChange={updateQuestion}
               quizId={quizIdRef.current}
             />
+          ) : (
+            <div style={{ textAlign: 'center', color: 'var(--text-faint)', paddingTop: 64 }}>
+              <div style={{ fontSize: 48, marginBottom: 12, opacity: 0.12, lineHeight: 1 }}>✦</div>
+              <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>No questions yet</div>
+              <div style={{ fontSize: 13, marginBottom: 28 }}>Pick a type to add your first question</div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+                {[
+                  { id: 'single',    label: 'Single choice', icon: 'radio' },
+                  { id: 'multi',     label: 'Multi-choice',  icon: 'check' },
+                  { id: 'truefalse', label: 'True / False',  icon: 'flag'  },
+                  { id: 'open',      label: 'Open answer',   icon: 'type'  },
+                ].map(t => (
+                  <button key={t.id} className="btn btn--secondary" onClick={() => addQuestion(t.id)} style={{ gap: 8 }}>
+                    <Icon name={t.icon} size={14} /> {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
         </div>
 
@@ -328,6 +408,50 @@ function Editor({ onNav }) {
         }
         .q-list-item:hover .q-list-item__actions { opacity: 1; }
       `}</style>
+
+      {importOpen && (
+        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setImportOpen(false)}>
+          <div className="modal" style={{ width: 560 }}>
+            <div style={{ padding: '20px 24px 0', borderBottom: '1px solid var(--border)', paddingBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em' }}>Import questions</div>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>Paste questions in text format below</div>
+              </div>
+              <button className="btn btn--ghost btn--icon" onClick={() => setImportOpen(false)}><Icon name="x" size={16} /></button>
+            </div>
+            <div style={{ padding: '16px 24px' }}>
+              <div style={{
+                padding: '10px 14px', borderRadius: 'var(--r-md)',
+                background: 'var(--surface)', border: '1px solid var(--border)',
+                fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: 14, fontFamily: 'JetBrains Mono',
+              }}>
+                {'Q: Question text\nA: Wrong option\nA: *Correct option\nA: Wrong option\n---\nQ: Next question\n...'}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-faint)', marginBottom: 10 }}>
+                Separate questions with a blank line or <code style={{ fontFamily: 'inherit', background: 'var(--bg-2)', padding: '0 4px', borderRadius: 4 }}>---</code>. Mark correct answer with <code style={{ fontFamily: 'inherit', background: 'var(--bg-2)', padding: '0 4px', borderRadius: 4 }}>*</code> before or after option text.
+              </div>
+              <textarea
+                value={importText}
+                onChange={e => setImportText(e.target.value)}
+                placeholder={'Q: What is 2 + 2?\nA: 3\nA: *4\nA: 5\n---\nQ: Capital of France?\nA: London\nA: *Paris\nA: Berlin'}
+                style={{
+                  width: '100%', height: 220, resize: 'vertical',
+                  padding: '12px 14px', borderRadius: 'var(--r-md)',
+                  background: 'var(--bg)', border: '1px solid var(--border)',
+                  fontSize: 13, lineHeight: 1.6, fontFamily: 'JetBrains Mono',
+                  color: 'var(--text)',
+                }}
+              />
+            </div>
+            <div style={{ padding: '0 24px 20px', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button className="btn btn--secondary" onClick={() => setImportOpen(false)}>Cancel</button>
+              <button className="btn btn--primary" onClick={doImport} disabled={importing || !importText.trim()}>
+                {importing ? 'Importing…' : <><Icon name="import" size={14} /> Import</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -434,6 +558,11 @@ function AddQuestionMenu({ onAdd }) {
 
 function QuestionListItem({ question, index, active, onClick, onDuplicate, onDelete, onMoveUp, onMoveDown }) {
   const typeLabels = { single: 'Single', multi: 'Multi', truefalse: 'T/F', open: 'Open' };
+  const hasText     = !!(question.prompt?.trim());
+  const hasCorrect  = question.type === 'open' ? true : (question.options || []).some(o => o.correct);
+  const dotColor    = !hasText ? 'var(--border-strong)'
+                    : !hasCorrect ? 'oklch(75% 0.14 65)'
+                    : 'oklch(65% 0.15 145)';
   return (
     <div
       className="q-list-item"
@@ -458,7 +587,8 @@ function QuestionListItem({ question, index, active, onClick, onDuplicate, onDel
         <div style={{ fontSize: 13, lineHeight: 1.35, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {question.prompt || <span style={{ color: 'var(--text-faint)' }}>Untitled question</span>}
         </div>
-        <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 3, display: 'flex', gap: 8 }}>
+        <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 3, display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span style={{ width: 5, height: 5, borderRadius: 99, flexShrink: 0, background: dotColor }} />
           <span>{typeLabels[question.type]}</span>
           <span>·</span>
           <span className="mono">{question.timeLimit}s</span>
@@ -488,34 +618,94 @@ function QuestionListItem({ question, index, active, onClick, onDuplicate, onDel
   );
 }
 
+const QUESTION_TYPES = [
+  { id: 'single',    label: 'Single',     icon: 'radio' },
+  { id: 'multi',     label: 'Multi',      icon: 'check' },
+  { id: 'truefalse', label: 'True/False', icon: 'flag'  },
+  { id: 'open',      label: 'Open',       icon: 'type'  },
+];
+
 function QuestionEditor({ question, index, total, onChange, quizId }) {
-  const fileRef = useRef(null);
-  const [uploading, setUploading] = useState(false);
+  const fileRef       = useRef(null);
+  const textareaRef   = useRef(null);
+  const [uploading, setUploading]   = useState(false);
+  const [imageOpen, setImageOpen]   = useState(false);
   const hasImage = !!(question.imageUrl && question.imageUrl.trim());
+
+  // Auto-focus question text when switching questions
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+      const len = textareaRef.current.value.length;
+      textareaRef.current.setSelectionRange(len, len);
+    }
+  }, [question.id]);
+
+  // Open image section automatically if question already has an image
+  useEffect(() => {
+    setImageOpen(!!(question.imageUrl?.trim()));
+  }, [question.id]);
+
+  const changeType = (newType) => {
+    if (newType === question.type) return;
+    const updates = { type: newType };
+    if (newType === 'truefalse') {
+      updates.options = [
+        { id: 'a', text: 'True',  correct: true  },
+        { id: 'b', text: 'False', correct: false },
+      ];
+    } else if (newType === 'open') {
+      updates.options = [];
+    } else if (question.type === 'open' || question.type === 'truefalse') {
+      updates.options = [
+        { id: 'a', text: '', correct: false }, { id: 'b', text: '', correct: false },
+        { id: 'c', text: '', correct: false }, { id: 'd', text: '', correct: false },
+      ];
+    }
+    onChange(updates);
+  };
 
   const handleImageFile = (file) => {
     if (!file || !file.type.startsWith('image/')) return;
-    if (file.size > 10 * 1024 * 1024) { alert('Image must be under 10 MB'); return; }
+    if (file.size > 10 * 1024 * 1024) { showToast('Image must be under 10 MB', 'error'); return; }
     if (!quizId || !question.id) return;
     const fd = new FormData();
     fd.append('image', file);
     setUploading(true);
     window.API.upload('/quizzes/' + quizId + '/questions/' + question.id + '/image/', fd)
-      .then(data => onChange({ imageUrl: data.image }))
-      .catch(err => alert(err.message))
+      .then(data => { onChange({ imageUrl: data.image }); setImageOpen(true); })
+      .catch(err => showToast(err.message, 'error'))
       .finally(() => setUploading(false));
   };
 
   return (
     <div style={{ width: '100%', maxWidth: 720 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-        <span className="mono" style={{ fontSize: 12, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-          Question {index + 1} / {total}
+      {/* Header: question counter + type switcher */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+        <span className="mono" style={{ fontSize: 12, color: 'var(--text-faint)', letterSpacing: '0.08em', marginRight: 4 }}>
+          {index + 1} / {total}
         </span>
-        <span className="pill">{question.type}</span>
+        {QUESTION_TYPES.map(t => (
+          <button
+            key={t.id}
+            onClick={() => changeType(t.id)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              padding: '4px 10px', borderRadius: 99, fontSize: 12, fontWeight: 500,
+              background: question.type === t.id ? 'var(--text)' : 'var(--surface)',
+              color:      question.type === t.id ? 'var(--bg)' : 'var(--text-muted)',
+              border: '1px solid ' + (question.type === t.id ? 'var(--text)' : 'var(--border)'),
+              transition: 'all 120ms var(--ease)',
+            }}
+          >
+            <Icon name={t.icon} size={11} />
+            {t.label}
+          </button>
+        ))}
       </div>
 
       <textarea
+        ref={textareaRef}
         value={question.prompt}
         onChange={e => onChange({ prompt: e.target.value })}
         placeholder="What's your question?"
@@ -527,59 +717,77 @@ function QuestionEditor({ question, index, total, onChange, quizId }) {
         }}
       />
 
-      <div
-        className="card"
-        style={{
-          padding: hasImage ? 0 : 20, marginBottom: 12,
-          aspectRatio: '16/9', display: 'grid', placeItems: 'center',
-          background: 'var(--bg-2)', borderStyle: hasImage ? 'solid' : 'dashed',
-          cursor: hasImage ? 'default' : 'pointer', maxHeight: 260,
-          position: 'relative', overflow: 'hidden',
-        }}
-        onClick={() => !hasImage && fileRef.current?.click()}
-        onDragOver={e => e.preventDefault()}
-        onDrop={e => { e.preventDefault(); handleImageFile(e.dataTransfer.files?.[0]); }}
-      >
-        {hasImage ? (
-          <>
-            <img src={question.imageUrl} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
-            <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 6, zIndex: 2 }}>
-              <button className="btn btn--sm" style={{ background: 'oklch(100% 0 0 / 0.9)', color: 'oklch(15% 0 0)', fontSize: 11 }}
-                onClick={e => { e.stopPropagation(); fileRef.current?.click(); }}>Replace</button>
-              <button className="btn btn--sm" style={{ background: 'oklch(100% 0 0 / 0.9)', color: 'oklch(45% 0.18 25)', fontSize: 11 }}
-                onClick={e => { e.stopPropagation(); onChange({ imageUrl: '' }); }}>Remove</button>
+      {/* Collapsible image section */}
+      <div style={{ marginBottom: 24 }}>
+        <button
+          className="btn btn--ghost btn--sm"
+          onClick={() => setImageOpen(o => !o)}
+          style={{ gap: 8, color: hasImage ? 'var(--text)' : 'var(--text-muted)' }}
+        >
+          <Icon name="image" size={13} />
+          {hasImage ? 'Image attached' : 'Add image'}
+          {hasImage && <span style={{ width: 6, height: 6, borderRadius: 99, background: 'oklch(65% 0.15 145)' }} />}
+          <Icon name="chevronDown" size={12} style={{ transform: imageOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 150ms' }} />
+        </button>
+
+        {imageOpen && (
+          <div style={{ marginTop: 10 }}>
+            <div
+              className="card"
+              style={{
+                padding: hasImage ? 0 : 20, marginBottom: 10,
+                aspectRatio: '16/9', display: 'grid', placeItems: 'center',
+                background: 'var(--bg-2)', borderStyle: hasImage ? 'solid' : 'dashed',
+                cursor: hasImage ? 'default' : 'pointer', maxHeight: 260,
+                position: 'relative', overflow: 'hidden',
+              }}
+              onClick={() => !hasImage && fileRef.current?.click()}
+              onDragOver={e => e.preventDefault()}
+              onDrop={e => { e.preventDefault(); handleImageFile(e.dataTransfer.files?.[0]); }}
+            >
+              {hasImage ? (
+                <>
+                  <img src={question.imageUrl} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 6, zIndex: 2 }}>
+                    <button className="btn btn--sm" style={{ background: 'oklch(100% 0 0 / 0.9)', color: 'oklch(15% 0 0)', fontSize: 11 }}
+                      onClick={e => { e.stopPropagation(); fileRef.current?.click(); }}>Replace</button>
+                    <button className="btn btn--sm" style={{ background: 'oklch(100% 0 0 / 0.9)', color: 'oklch(45% 0.18 25)', fontSize: 11 }}
+                      onClick={e => { e.stopPropagation(); onChange({ imageUrl: '' }); }}>Remove</button>
+                  </div>
+                </>
+              ) : (
+                <div style={{ textAlign: 'center', color: 'var(--text-faint)', pointerEvents: 'none' }}>
+                  {uploading ? (
+                    <div style={{ fontSize: 13, fontWeight: 500 }}>Uploading…</div>
+                  ) : (
+                    <>
+                      <Icon name="image" size={28} />
+                      <div style={{ fontSize: 13, marginTop: 8, fontWeight: 500 }}>Click or drop an image</div>
+                      <div style={{ fontSize: 12, marginTop: 2 }}>JPG, PNG · up to 10 MB</div>
+                    </>
+                  )}
+                </div>
+              )}
+              <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }}
+                onChange={e => { handleImageFile(e.target.files?.[0]); e.target.value = ''; }} />
             </div>
-          </>
-        ) : (
-          <div style={{ textAlign: 'center', color: 'var(--text-faint)', pointerEvents: 'none' }}>
-            {uploading ? (
-              <div style={{ fontSize: 13, fontWeight: 500 }}>Uploading…</div>
-            ) : (
-              <>
-                <Icon name="image" size={28} />
-                <div style={{ fontSize: 13, marginTop: 8, fontWeight: 500 }}>Click or drop an image</div>
-                <div style={{ fontSize: 12, marginTop: 2 }}>JPG, PNG · up to 10 MB</div>
-              </>
-            )}
+
+            <div style={{ position: 'relative' }}>
+              <span style={{
+                position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
+                fontSize: 11, fontWeight: 600, color: 'var(--text-faint)',
+                textTransform: 'uppercase', letterSpacing: '0.08em', pointerEvents: 'none',
+              }}>URL</span>
+              <input
+                className="input"
+                placeholder="or paste an image URL (https://...)"
+                value={question.imageUrl || ''}
+                onChange={e => onChange({ imageUrl: e.target.value })}
+                style={{ paddingLeft: 52, fontSize: 13 }}
+              />
+            </div>
           </div>
         )}
-        <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }}
-          onChange={e => { handleImageFile(e.target.files?.[0]); e.target.value = ''; }} />
-      </div>
-
-      <div style={{ position: 'relative', marginBottom: 24 }}>
-        <span style={{
-          position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
-          fontSize: 11, fontWeight: 600, color: 'var(--text-faint)',
-          textTransform: 'uppercase', letterSpacing: '0.08em', pointerEvents: 'none',
-        }}>URL</span>
-        <input
-          className="input"
-          placeholder="or paste an image URL (https://...)"
-          value={question.imageUrl || ''}
-          onChange={e => onChange({ imageUrl: e.target.value })}
-          style={{ paddingLeft: 52, fontSize: 13 }}
-        />
       </div>
 
       {(question.type === 'single' || question.type === 'multi' || question.type === 'truefalse') && (
@@ -604,6 +812,7 @@ function QuestionEditor({ question, index, total, onChange, quizId }) {
 }
 
 function OptionsEditor({ question, onChange }) {
+  const optRefs = useRef([]);
   const updateOption = (id, updates) => {
     onChange({ options: question.options.map(o => o.id === id ? { ...o, ...updates } : o) });
   };
@@ -615,9 +824,12 @@ function OptionsEditor({ question, onChange }) {
       updateOption(id, { correct: !o.correct });
     }
   };
-  const addOption = () => {
+  const addOption = (thenFocusIdx) => {
     const newId = String.fromCharCode(97 + question.options.length);
     onChange({ options: [...question.options, { id: newId, text: '', correct: false }] });
+    if (thenFocusIdx !== undefined) {
+      setTimeout(() => optRefs.current[thenFocusIdx]?.focus(), 30);
+    }
   };
   const removeOption = (id) => {
     if (question.options.length <= 2) return;
@@ -653,11 +865,19 @@ function OptionsEditor({ question, onChange }) {
             </button>
             <span className="mono" style={{ fontSize: 12, color: 'var(--text-faint)', width: 14 }}>{String.fromCharCode(65 + i)}</span>
             <input
+              ref={el => optRefs.current[i] = el}
               value={opt.text}
               onChange={e => updateOption(opt.id, { text: e.target.value })}
               placeholder={`Option ${String.fromCharCode(65 + i)}`}
               disabled={question.type === 'truefalse'}
               style={{ flex: 1, fontSize: 15, padding: 0, opacity: question.type === 'truefalse' ? 0.7 : 1 }}
+              onKeyDown={e => {
+                if (e.key === 'Tab' && !e.shiftKey && i === question.options.length - 1
+                    && question.options.length < 6 && question.type !== 'truefalse') {
+                  e.preventDefault();
+                  addOption(question.options.length);
+                }
+              }}
             />
             {question.type !== 'truefalse' && question.options.length > 2 && (
               <button className="btn btn--ghost btn--icon" onClick={() => removeOption(opt.id)}>
@@ -668,7 +888,7 @@ function OptionsEditor({ question, onChange }) {
         ))}
       </div>
       {question.type !== 'truefalse' && question.options.length < 6 && (
-        <button onClick={addOption} className="btn btn--ghost btn--sm" style={{ marginTop: 10 }}>
+        <button onClick={() => addOption()} className="btn btn--ghost btn--sm" style={{ marginTop: 10 }}>
           <Icon name="plus" size={14} /> Add option
         </button>
       )}
@@ -719,6 +939,20 @@ function Inspector({ question, onChange, description, onDescription }) {
                   }}
                 >{t}</button>
               ))}
+              <input
+                type="number" min={5} max={300}
+                value={[10, 20, 30, 45, 60].includes(question.timeLimit) ? '' : question.timeLimit}
+                onChange={e => { const v = parseInt(e.target.value, 10); if (v >= 5 && v <= 300) onChange({ timeLimit: v }); }}
+                placeholder="…"
+                title="Custom (5–300 s)"
+                style={{
+                  width: 46, padding: '8px 4px', fontSize: 12, textAlign: 'center',
+                  borderRadius: 6, fontFamily: 'JetBrains Mono',
+                  background: ![10,20,30,45,60].includes(question.timeLimit) ? 'var(--text)' : 'var(--surface)',
+                  color:      ![10,20,30,45,60].includes(question.timeLimit) ? 'var(--bg)'   : 'var(--text-muted)',
+                  border: '1px solid ' + (![10,20,30,45,60].includes(question.timeLimit) ? 'var(--text)' : 'var(--border)'),
+                }}
+              />
             </div>
           </Field>
 

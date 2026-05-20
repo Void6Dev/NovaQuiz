@@ -386,6 +386,21 @@ button { cursor: pointer; }
   overflow: hidden;
 }
 
+/* === Reduce motion === */
+.reduce-motion *, .reduce-motion *::before, .reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+/* === Compact density === */
+.compact .page { padding: 20px 28px 40px; }
+.compact .sidebar { padding: 14px 10px; gap: 2px; }
+.compact .sidebar__logo { padding: 4px 8px 16px; }
+.compact .sidebar__section-label { padding: 10px 10px 4px; }
+.compact .nav-item { padding: 6px 8px; font-size: 13px; }
+.compact .sidebar__user { padding: 7px 8px; }
+
 /* === Tweaks panel overrides (match our system) === */
 .om-tweaks-panel {
   background: var(--surface) !important;

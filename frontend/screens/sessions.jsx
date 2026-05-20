@@ -183,7 +183,7 @@ function Sessions({ onNav }) {
                 try {
                   const session = await window.API.post('/sessions/join/', { code: s.code });
                   onNav('live', { sessionId: session.id });
-                } catch (err) { alert(err.message); }
+                } catch (err) { showToast(err.message, 'error'); }
               }}
               disabled={s.started || s.players >= s.maxPlayers}
               style={{ opacity: (s.started || s.players >= s.maxPlayers) ? 0.4 : 1 }}

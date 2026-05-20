@@ -7,7 +7,7 @@ function Sidebar({ current, onLogout }) {
   const nav = window.navigate;
 
   const items = [
-    { id: 'dashboard', label: 'Dashboard', icon: 'grid' },
+    { id: 'dashboard', label: 'Browse',    icon: 'compass' },
     { id: 'editor',    label: 'Editor',    icon: 'edit' },
     { id: 'sessions',  label: 'Sessions',  icon: 'users' },
     { id: 'analytics', label: 'Analytics', icon: 'chart' },
