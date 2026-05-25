@@ -65,6 +65,10 @@ html, body, #root {
   transition: background-color 350ms var(--ease), color 350ms var(--ease);
 }
 
+a {
+    text-decoration: none;
+}
+
 body { overflow: hidden; }
 
 button, input, textarea, select {

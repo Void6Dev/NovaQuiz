@@ -332,8 +332,8 @@
   window.t = t;
   window.setLang = setLang;
   window.SUPPORTED_LANGS = [
-    { code: 'en', nativeLabel: 'English', flag: '🇬🇧' },
-    { code: 'ru', nativeLabel: 'Русский', flag: '🇷🇺' },
-    { code: 'es', nativeLabel: 'Español', flag: '🇪🇸' },
+    { code: 'en', nativeLabel: 'English', flag: 'EN' },
+    { code: 'ru', nativeLabel: 'Русский', flag: 'RU' },
+    { code: 'es', nativeLabel: 'Español', flag: 'ES' },
   ];
 })();
