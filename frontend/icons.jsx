@@ -44,6 +44,7 @@ const Icon = ({ name, size = 18, ...rest }) => {
     info: <><circle cx="12" cy="12" r="10"/><path d="M12 16V12"/><circle cx="12" cy="8" r="0.5" fill="currentColor"/></>,
     shuffle: <><path d="M16 3H21V8"/><path d="M4 20L21 3"/><path d="M21 16V21H16"/><path d="M15 15L21 21"/><path d="M4 4L9 9"/></>,
     import: <><path d="M21 15V19A2 2 0 0 1 19 21H5A2 2 0 0 1 3 19V15"/><path d="M7 10L12 15L17 10"/><path d="M12 15V3"/></>,
+    globe: <><circle cx="12" cy="12" r="10"/><path d="M2 12H22"/><path d="M12 2C8.5 6 7 9 7 12S8.5 18 12 22"/><path d="M12 2C15.5 6 17 9 17 12S15.5 18 12 22"/></>,
   };
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" {...rest}>

@@ -1,37 +1,40 @@
 // === Command palette — Ctrl+K / ⌘K ===
 
-const _CP_JUMP = [
-  { id: 'cp-home',      label: 'Browse',       sub: 'dashboard',  icon: 'compass',  screen: 'dashboard',  hint: ['G','H'] },
-  { id: 'cp-analytics', label: 'Analytics',    sub: 'last 30 days', icon: 'chart',  screen: 'analytics',  hint: ['G','A'] },
-  { id: 'cp-sessions',  label: 'Sessions',     sub: '',           icon: 'users',    screen: 'sessions',   hint: ['G','S'] },
-  { id: 'cp-profile',   label: 'Your profile', sub: '',           icon: 'user',     screen: 'profile',    hint: ['G','P'] },
-  { id: 'cp-settings',  label: 'Settings',     sub: '',           icon: 'settings', screen: 'settings',   hint: []        },
-];
-
-const _CP_ACTIONS = [
-  {
-    id: 'cp-new-quiz',
-    label: 'New blank quiz', sub: '',
-    icon: 'plus', hint: ['N','Q'],
-    run: () => window.navigate('editor', { newQuiz: 1 }),
-  },
-  {
-    id: 'cp-run-live',
-    label: 'Run live session', sub: 'pick a quiz…',
-    icon: 'bolt', hint: ['N','L'],
-    run: () => window.navigate('sessions'),
-  },
-];
-
 const _isMac = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform);
 
 function CommandPalette() {
+  useLang(); // re-render on language change
+
   const [open, setOpen]         = useState(false);
   const [query, setQuery]       = useState('');
   const [quizzes, setQuizzes]   = useState([]);
   const [loadingQ, setLoadingQ] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
   const inputRef   = useRef(null);
+
+  // ── Jump / action lists — recomputed each render so labels update on lang change ──
+  const CP_JUMP = [
+    { id: 'cp-home',      label: t('cp.browse'),    sub: 'dashboard',    icon: 'compass',  screen: 'dashboard',  hint: ['G','H'] },
+    { id: 'cp-analytics', label: t('cp.analytics'), sub: 'last 30 days', icon: 'chart',    screen: 'analytics',  hint: ['G','A'] },
+    { id: 'cp-sessions',  label: t('cp.sessions'),  sub: '',             icon: 'users',    screen: 'sessions',   hint: ['G','S'] },
+    { id: 'cp-profile',   label: t('cp.profile'),   sub: '',             icon: 'user',     screen: 'profile',    hint: ['G','P'] },
+    { id: 'cp-settings',  label: t('cp.settings'),  sub: '',             icon: 'settings', screen: 'settings',   hint: []        },
+  ];
+
+  const CP_ACTIONS = [
+    {
+      id: 'cp-new-quiz',
+      label: t('cp.new_quiz'), sub: '',
+      icon: 'plus', hint: ['N','Q'],
+      run: () => window.navigate('editor', { newQuiz: 1 }),
+    },
+    {
+      id: 'cp-run-live',
+      label: t('cp.run_live'), sub: t('cp.pick_quiz'),
+      icon: 'bolt', hint: ['N','L'],
+      run: () => window.navigate('sessions'),
+    },
+  ];
 
   // ── Global shortcuts ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -78,8 +81,8 @@ function CommandPalette() {
     ? quizzes.filter(qz => qz.title.toLowerCase().includes(q)).slice(0, 6)
     : quizzes.slice(0, 5);
 
-  const filteredJump    = _CP_JUMP.filter(i => !q || i.label.toLowerCase().includes(q));
-  const filteredActions = _CP_ACTIONS.filter(i => !q || i.label.toLowerCase().includes(q));
+  const filteredJump    = CP_JUMP.filter(i => !q || i.label.toLowerCase().includes(q));
+  const filteredActions = CP_ACTIONS.filter(i => !q || i.label.toLowerCase().includes(q));
 
   // Flat list for keyboard navigation (sections excluded)
   const selectables = [
@@ -169,7 +172,7 @@ function CommandPalette() {
               ref={inputRef}
               className="cp-input"
               value={query}
-              placeholder="Search quizzes or jump to…"
+              placeholder={t('cp.placeholder')}
               onChange={e => { setQuery(e.target.value); setActiveIdx(0); }}
               onKeyDown={onKeyDown}
               autoComplete="off"
@@ -181,40 +184,40 @@ function CommandPalette() {
           {/* ── Results ── */}
           <div className="cp-results">
             {noResults && q && (
-              <div className="cp-empty">No results for "<strong>{query}</strong>"</div>
+              <div className="cp-empty">{t('cp.no_results')} "<strong>{query}</strong>"</div>
             )}
 
             {filteredQuizzes.length > 0 && (
               <section className="cp-section">
-                <div className="cp-section__label">{q ? 'Quizzes' : 'Recent quizzes'}</div>
+                <div className="cp-section__label">{q ? t('cp.quizzes') : t('cp.recent')}</div>
                 {filteredQuizzes.map(qz => renderItem({ _type: 'quiz', ...qz }, qz.topic ? window.TOPIC_BY_CODE?.[qz.topic]?.label : ''))}
               </section>
             )}
 
             {filteredJump.length > 0 && (
               <section className="cp-section">
-                <div className="cp-section__label">Jump to</div>
+                <div className="cp-section__label">{t('cp.jump_to')}</div>
                 {filteredJump.map(i => renderItem({ _type: 'jump', ...i }))}
               </section>
             )}
 
             {filteredActions.length > 0 && (
               <section className="cp-section">
-                <div className="cp-section__label">Actions</div>
+                <div className="cp-section__label">{t('cp.actions')}</div>
                 {filteredActions.map(i => renderItem({ _type: 'action', ...i }))}
               </section>
             )}
 
             {loadingQ && filteredQuizzes.length === 0 && !q && (
-              <div className="cp-empty" style={{ color: 'var(--text-faint)' }}>Loading quizzes…</div>
+              <div className="cp-empty" style={{ color: 'var(--text-faint)' }}>{t('cp.loading')}</div>
             )}
           </div>
 
           {/* ── Footer ── */}
           <div className="cp-footer">
-            <span className="cp-footer__hint"><kbd className="cp-kbd-sm">↑↓</kbd> navigate</span>
-            <span className="cp-footer__hint"><kbd className="cp-kbd-sm">↵</kbd> select</span>
-            <span className="cp-footer__hint"><kbd className="cp-kbd-sm">esc</kbd> close</span>
+            <span className="cp-footer__hint"><kbd className="cp-kbd-sm">↑↓</kbd> {t('cp.navigate')}</span>
+            <span className="cp-footer__hint"><kbd className="cp-kbd-sm">↵</kbd> {t('cp.select')}</span>
+            <span className="cp-footer__hint"><kbd className="cp-kbd-sm">esc</kbd> {t('cp.close')}</span>
           </div>
         </div>
       </div>

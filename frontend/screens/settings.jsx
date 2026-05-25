@@ -5,18 +5,21 @@ function loadPrefs() { try { return JSON.parse(localStorage.getItem(PREFS_KEY) |
 function savePrefs(p) { try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch {} }
 
 function Settings({ theme, onTheme, onLogout }) {
+  useLang(); // re-render on language change
+
   const [section, setSection] = useState('profile');
   const sections = [
-    { id: 'profile',       label: 'Profile',            icon: 'user' },
-    { id: 'appearance',    label: 'Appearance',          icon: 'sun' },
-    { id: 'notifications', label: 'Notifications',       icon: 'bell' },
-    { id: 'workspace',     label: 'Workspace',           icon: 'users' },
-    { id: 'billing',       label: 'Billing & Credits',   icon: 'star' },
+    { id: 'profile',       label: t('settings.profile'),       icon: 'user'     },
+    { id: 'appearance',    label: t('settings.appearance'),    icon: 'sun'      },
+    { id: 'language',      label: t('settings.language'),      icon: 'globe'    },
+    { id: 'notifications', label: t('settings.notifications'), icon: 'bell'     },
+    { id: 'workspace',     label: t('settings.workspace'),     icon: 'users'    },
+    { id: 'billing',       label: t('settings.billing'),       icon: 'star'     },
   ];
 
   return (
     <div className="page fade-in" data-screen-label="07 Settings" style={{ maxWidth: 1100 }}>
-      <PageHeader title="Settings" subtitle="Manage your account, workspace, and preferences." />
+      <PageHeader title={t('settings.title')} subtitle={t('settings.subtitle')} />
 
       <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 32 }}>
         <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -35,6 +38,7 @@ function Settings({ theme, onTheme, onLogout }) {
         <div>
           {section === 'profile'       && <ProfileSettings onLogout={onLogout} />}
           {section === 'appearance'    && <AppearanceSettings theme={theme} onTheme={onTheme} />}
+          {section === 'language'      && <LanguageSettings />}
           {section === 'notifications' && <NotificationSettings />}
           {section === 'workspace'     && <WorkspaceSettings />}
           {section === 'billing'       && <BillingSettings />}
@@ -89,7 +93,7 @@ function SaveBar({ saving, message, isError, onSave, disabled }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingTop: 4 }}>
       <button className="btn btn--primary" onClick={onSave} disabled={saving || disabled}>
-        {saving ? 'Saving…' : 'Save changes'}
+        {saving ? t('profile.saving') : t('profile.save')}
       </button>
       {message && (
         <span style={{ fontSize: 13, color: isError ? 'var(--danger)' : 'oklch(50% 0.16 145)', display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -106,7 +110,6 @@ function SaveBar({ saving, message, isError, onSave, disabled }) {
 function ProfileSettings({ onLogout }) {
   const u = window.CURRENT_USER;
 
-  // Form state — initialised from cached user, refreshed from API on mount
   const [name, setName]               = useState(u.name || u.username || '');
   const [email, setEmail]             = useState(u.email || '');
   const [description, setDescription] = useState(u.description || '');
@@ -114,12 +117,10 @@ function ProfileSettings({ onLogout }) {
   const [avatar, setAvatar]           = useState(u.avatar || null);
   const [loadingProfile, setLoadingProfile] = useState(true);
 
-  // Save state
   const [saving, setSaving]     = useState(false);
   const [saveMsg, setSaveMsg]   = useState('');
   const [saveErr, setSaveErr]   = useState(false);
 
-  // Password state
   const [oldPass, setOldPass]         = useState('');
   const [newPass, setNewPass]         = useState('');
   const [confirmPass, setConfirmPass] = useState('');
@@ -127,13 +128,11 @@ function ProfileSettings({ onLogout }) {
   const [passMsg, setPassMsg]         = useState('');
   const [passErr, setPassErr]         = useState(false);
 
-  // Delete modal
   const [showDelete, setShowDelete]   = useState(false);
   const [deleteInput, setDeleteInput] = useState('');
 
   const avatarInputRef = useRef();
 
-  // Load full profile from API
   useEffect(() => {
     window.API.get('/auth/me/')
       .then(data => {
@@ -153,7 +152,7 @@ function ProfileSettings({ onLogout }) {
     try {
       const updated = await window.API.post('/auth/profile/', { name, email, description, birthday });
       window.API.saveUser({ ...window.CURRENT_USER, ...updated });
-      setSaveMsg('Saved successfully!');
+      setSaveMsg(t('profile.saved'));
       setTimeout(() => setSaveMsg(''), 4000);
     } catch (e) {
       setSaveMsg(e.message || 'Failed to save.');
@@ -169,7 +168,7 @@ function ProfileSettings({ onLogout }) {
     setPassSaving(true); setPassMsg(''); setPassErr(false);
     try {
       await window.API.post('/auth/change-password/', { old_password: oldPass, new_password: newPass });
-      setPassMsg('Password changed!');
+      setPassMsg(t('profile.updated'));
       setOldPass(''); setNewPass(''); setConfirmPass('');
       setTimeout(() => setPassMsg(''), 4000);
     } catch (e) {
@@ -210,13 +209,13 @@ function ProfileSettings({ onLogout }) {
     .split(' ').filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
   if (loadingProfile) {
-    return <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--text-muted)' }}>Loading profile…</div>;
+    return <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--text-muted)' }}>Loading…</div>;
   }
 
   return (
     <>
       {/* ── Account card ── */}
-      <SettingsSection title="Account">
+      <SettingsSection title={t('profile.account')}>
         <div className="card" style={{ padding: 24, display: 'flex', alignItems: 'center', gap: 20, marginBottom: 0 }}>
           <div style={{ position: 'relative', flexShrink: 0 }}>
             {avatar
@@ -244,7 +243,7 @@ function ProfileSettings({ onLogout }) {
               <div style={{ fontSize: 17, fontWeight: 600 }}>{name || u.username}</div>
               {(window.CURRENT_USER.permission === 'moderator') && (
                 <span className="pill" style={{ background: 'oklch(80% 0.14 220)', color: 'oklch(25% 0.06 220)', borderColor: 'transparent', fontWeight: 700, fontSize: 10 }}>
-                  Moderator
+                  {t('profile.moderator')}
                 </span>
               )}
             </div>
@@ -255,17 +254,17 @@ function ProfileSettings({ onLogout }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: 13 }}>
               <Icon name="star" size={13} style={{ color: 'var(--accent-strong)' }} />
               <span className="mono" style={{ fontWeight: 600 }}>{(window.CURRENT_USER.credits || 0).toLocaleString()}</span>
-              <span style={{ color: 'var(--text-muted)' }}>credits</span>
+              <span style={{ color: 'var(--text-muted)' }}>{t('profile.credits')}</span>
             </div>
           </div>
         </div>
       </SettingsSection>
 
       {/* ── Edit profile ── */}
-      <SettingsSection title="Profile" subtitle="Shown on quizzes you create and sessions you host.">
+      <SettingsSection title={t('profile.edit')} subtitle={t('profile.edit_subtitle')}>
         <div className="card" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <FormField label="Display name">
+            <FormField label={t('profile.display_name')}>
               <input
                 className="input"
                 value={name}
@@ -273,7 +272,7 @@ function ProfileSettings({ onLogout }) {
                 placeholder="Your full name"
               />
             </FormField>
-            <FormField label="Username" hint="Cannot be changed">
+            <FormField label={t('profile.username')} hint={t('profile.username_hint')}>
               <input
                 className="input"
                 value={u.username}
@@ -283,7 +282,7 @@ function ProfileSettings({ onLogout }) {
             </FormField>
           </div>
 
-          <FormField label="Email">
+          <FormField label={t('profile.email')}>
             <input
               className="input"
               type="email"
@@ -293,7 +292,7 @@ function ProfileSettings({ onLogout }) {
             />
           </FormField>
 
-          <FormField label="Bio" hint="Up to 160 characters">
+          <FormField label={t('profile.bio')} hint={t('profile.bio_hint')}>
             <textarea
               className="input"
               value={description}
@@ -307,7 +306,7 @@ function ProfileSettings({ onLogout }) {
             </div>
           </FormField>
 
-          <FormField label="Date of birth" hint="Used for age-gated features only">
+          <FormField label={t('profile.dob')} hint={t('profile.dob_hint')}>
             <input
               className="input"
               type="date"
@@ -322,9 +321,9 @@ function ProfileSettings({ onLogout }) {
       </SettingsSection>
 
       {/* ── Change password ── */}
-      <SettingsSection title="Password" subtitle="Use a strong password you don't use elsewhere.">
+      <SettingsSection title={t('profile.password')} subtitle={t('profile.password_subtitle')}>
         <form className="card" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }} onSubmit={changePassword}>
-          <FormField label="Current password">
+          <FormField label={t('profile.current_password')}>
             <input
               className="input"
               type="password"
@@ -336,7 +335,7 @@ function ProfileSettings({ onLogout }) {
           </FormField>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <FormField label="New password" hint="Min. 6 characters">
+            <FormField label={t('profile.new_password')} hint={t('profile.new_password_hint')}>
               <input
                 className="input"
                 type="password"
@@ -346,7 +345,7 @@ function ProfileSettings({ onLogout }) {
                 placeholder="New password"
               />
             </FormField>
-            <FormField label="Confirm new password">
+            <FormField label={t('profile.confirm_password')}>
               <input
                 className="input"
                 type="password"
@@ -364,7 +363,7 @@ function ProfileSettings({ onLogout }) {
               type="submit"
               disabled={passSaving || !oldPass || !newPass || !confirmPass}
             >
-              {passSaving ? 'Updating…' : 'Change password'}
+              {passSaving ? t('profile.updating') : t('profile.change_password')}
             </button>
             {passMsg && (
               <span style={{ fontSize: 13, color: passErr ? 'var(--danger)' : 'oklch(50% 0.16 145)', display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -377,20 +376,20 @@ function ProfileSettings({ onLogout }) {
       </SettingsSection>
 
       {/* ── Danger zone ── */}
-      <SettingsSection title="Danger zone">
+      <SettingsSection title={t('profile.danger')}>
         <div className="card" style={{ padding: 0, overflow: 'hidden', borderColor: 'oklch(60% 0.18 25 / 0.35)' }}>
-          <SettingsRow label="Sign out" hint="Sign out of this device only">
+          <SettingsRow label={t('profile.signout')} hint={t('profile.signout_hint')}>
             <button className="btn btn--secondary" onClick={onLogout}>
-              <Icon name="logout" size={14} /> Sign out
+              <Icon name="logout" size={14} /> {t('profile.signout')}
             </button>
           </SettingsRow>
-          <SettingsRow label="Delete account" hint="Permanently removes your account, quizzes, and all session data.">
+          <SettingsRow label={t('profile.delete')} hint={t('profile.delete_hint')}>
             <button
               className="btn btn--secondary"
               style={{ color: 'var(--danger)', borderColor: 'oklch(60% 0.18 25 / 0.4)' }}
               onClick={() => setShowDelete(true)}
             >
-              <Icon name="trash" size={14} /> Delete account
+              <Icon name="trash" size={14} /> {t('profile.delete')}
             </button>
           </SettingsRow>
         </div>
@@ -458,15 +457,17 @@ function AppearanceSettings({ theme, onTheme }) {
     if (key === 'compactDensity') document.documentElement.classList.toggle('compact', !!val);
   };
 
+  const modes = [
+    { mode: 'light',  label: t('appearance.light')  },
+    { mode: 'dark',   label: t('appearance.dark')   },
+    { mode: 'system', label: t('appearance.system') },
+  ];
+
   return (
     <>
-      <SettingsSection title="Theme" subtitle="Choose how Nova Quiz looks. Applies to the whole workspace.">
+      <SettingsSection title={t('appearance.theme')} subtitle={t('appearance.theme_subtitle')}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-          {[
-            { mode: 'light',  label: 'Light'  },
-            { mode: 'dark',   label: 'Dark'   },
-            { mode: 'system', label: 'System' },
-          ].map(({ mode, label }) => (
+          {modes.map(({ mode, label }) => (
             <button
               key={mode}
               onClick={() => { onTheme(mode); setPref('theme', mode); }}
@@ -506,26 +507,26 @@ function AppearanceSettings({ theme, onTheme }) {
         </div>
       </SettingsSection>
 
-      <SettingsSection title="Display">
+      <SettingsSection title={t('appearance.display')}>
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <SettingsRow label="Reduce motion" hint="Disable interface animations">
+          <SettingsRow label={t('appearance.reduce_motion')} hint={t('appearance.reduce_motion_hint')}>
             <Toggle on={!!prefs.reduceMotion} onChange={v => setPref('reduceMotion', v)} />
           </SettingsRow>
-          <SettingsRow label="Compact density" hint="Show more content on screen at once">
+          <SettingsRow label={t('appearance.compact')} hint={t('appearance.compact_hint')}>
             <Toggle on={!!prefs.compactDensity} onChange={v => setPref('compactDensity', v)} />
           </SettingsRow>
-          <SettingsRow label="Show keyboard shortcuts" hint="Display hints in tooltips">
+          <SettingsRow label={t('appearance.shortcuts')} hint={t('appearance.shortcuts_hint')}>
             <Toggle on={prefs.showShortcuts !== false} onChange={v => setPref('showShortcuts', v)} />
           </SettingsRow>
         </div>
       </SettingsSection>
 
-      <SettingsSection title="Player experience" subtitle="Default settings applied when you host a live quiz.">
+      <SettingsSection title={t('appearance.player')} subtitle={t('appearance.player_subtitle')}>
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <SettingsRow label="Sound effects" hint="Play audio on correct / incorrect answers">
+          <SettingsRow label={t('appearance.sound')} hint={t('appearance.sound_hint')}>
             <Toggle on={prefs.soundEffects !== false} onChange={v => setPref('soundEffects', v)} />
           </SettingsRow>
-          <SettingsRow label="Confetti on win" hint="Celebrate high scorers at the end of a session">
+          <SettingsRow label={t('appearance.confetti')} hint={t('appearance.confetti_hint')}>
             <Toggle on={prefs.confetti !== false} onChange={v => setPref('confetti', v)} />
           </SettingsRow>
         </div>
@@ -560,6 +561,50 @@ function ThemePreview({ dark }) {
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Language ─────────────────────────────────────────────────────────────────
+
+function LanguageSettings() {
+  const currentLang = useLang(); // subscribe + get current lang
+
+  return (
+    <SettingsSection title={t('language.title')} subtitle={t('language.subtitle')}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+        {(window.SUPPORTED_LANGS || []).map(({ code, nativeLabel, flag }) => {
+          const active = currentLang === code;
+          return (
+            <button
+              key={code}
+              onClick={() => window.setLang(code)}
+              style={{
+                padding: '28px 16px 20px',
+                background: active ? 'oklch(from var(--accent) l c h / 0.08)' : 'var(--surface)',
+                cursor: 'pointer',
+                border: '2px solid ' + (active ? 'var(--accent-strong)' : 'var(--border)'),
+                borderRadius: 'var(--r-lg)',
+                transition: 'border-color 200ms var(--ease), background 200ms var(--ease)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
+              }}
+            >
+              <span style={{ fontSize: 36, lineHeight: 1 }}>{flag}</span>
+              <span style={{
+                fontSize: 15, fontWeight: active ? 700 : 500,
+                color: active ? 'var(--text)' : 'var(--text-muted)',
+                transition: 'color 150ms',
+              }}>{nativeLabel}</span>
+              <span style={{
+                width: 6, height: 6, borderRadius: 99,
+                background: active ? 'var(--accent-strong)' : 'transparent',
+                border: '1.5px solid ' + (active ? 'var(--accent-strong)' : 'var(--border-strong)'),
+                transition: 'all 150ms',
+              }} />
+            </button>
+          );
+        })}
+      </div>
+    </SettingsSection>
   );
 }
 

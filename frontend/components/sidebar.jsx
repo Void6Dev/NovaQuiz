@@ -3,18 +3,20 @@
 // Navigates between pages via window.navigate(screen).
 
 function Sidebar({ current, onLogout }) {
+  useLang(); // re-render when language changes
+
   const u = window.CURRENT_USER;
   const nav = window.navigate;
 
   const items = [
-    { id: 'dashboard', label: 'Browse',    icon: 'compass' },
-    { id: 'editor',    label: 'Editor',    icon: 'edit' },
-    { id: 'sessions',  label: 'Sessions',  icon: 'users' },
-    { id: 'analytics', label: 'Analytics', icon: 'chart' },
-    { id: 'profile',   label: 'You',       icon: 'user'   },
+    { id: 'dashboard', label: t('nav.browse'),    icon: 'compass' },
+    { id: 'editor',    label: t('nav.editor'),    icon: 'edit' },
+    { id: 'sessions',  label: t('nav.sessions'),  icon: 'users' },
+    { id: 'analytics', label: t('nav.analytics'), icon: 'chart' },
+    { id: 'profile',   label: t('nav.you'),       icon: 'user'   },
   ];
   const bottom = [
-    { id: 'settings', label: 'Settings', icon: 'settings' },
+    { id: 'settings', label: t('nav.settings'), icon: 'settings' },
   ];
 
   return (
@@ -31,7 +33,7 @@ function Sidebar({ current, onLogout }) {
         onClick={() => nav('editor', { newQuiz: 1 })}
       >
         <Icon name="plus" size={16} />
-        New quiz
+        {t('nav.new_quiz')}
       </button>
 
       <button
@@ -48,7 +50,7 @@ function Sidebar({ current, onLogout }) {
         onClick={() => window.dispatchEvent(new CustomEvent('open-command-palette'))}
       >
         <Icon name="search" size={13} />
-        <span style={{ flex: 1, textAlign: 'left' }}>Search…</span>
+        <span style={{ flex: 1, textAlign: 'left' }}>{t('nav.search')}</span>
         <kbd style={{
           padding: '1px 5px', borderRadius: 4,
           fontSize: 10, fontFamily: 'JetBrains Mono, monospace', fontWeight: 600,
@@ -57,7 +59,7 @@ function Sidebar({ current, onLogout }) {
         }}>{typeof navigator !== 'undefined' && /mac/i.test(navigator.platform) ? '⌘K' : 'Ctrl+K'}</kbd>
       </button>
 
-      <div className="sidebar__section-label">Workspace</div>
+      <div className="sidebar__section-label">{t('nav.workspace')}</div>
       {items.map(item => (
         <a
           key={item.id}
@@ -71,19 +73,19 @@ function Sidebar({ current, onLogout }) {
         </a>
       ))}
 
-      <div className="sidebar__section-label">Library</div>
+      <div className="sidebar__section-label">{t('nav.library')}</div>
       <a className="nav-item" href={window.ROUTES.dashboard} onClick={(e) => { e.preventDefault(); nav('dashboard', { tab: 'mine' }); }}>
-        <Icon name="folder" size={17} /> <span>My quizzes</span>
+        <Icon name="folder" size={17} /> <span>{t('nav.my_quizzes')}</span>
       </a>
       <a className="nav-item">
-        <Icon name="star" size={17} /> <span>Starred</span>
+        <Icon name="star" size={17} /> <span>{t('nav.starred')}</span>
       </a>
       <a
         className={`nav-item ${current === 'shared' ? 'nav-item--active' : ''}`}
         href="shared.html"
         onClick={(e) => { e.preventDefault(); window.location.href = 'shared.html'; }}
       >
-        <Icon name="users" size={17} /> <span>Shared with me</span>
+        <Icon name="users" size={17} /> <span>{t('nav.shared')}</span>
       </a>
 
       <div style={{ flex: 1 }} />
@@ -99,7 +101,7 @@ function Sidebar({ current, onLogout }) {
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="mono" style={{ fontSize: 14, fontWeight: 600, letterSpacing: '-0.01em' }}>{u.credits.toLocaleString()}</div>
-            <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>Credits</div>
+            <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>{t('nav.credits')}</div>
           </div>
         </div>
       </div>

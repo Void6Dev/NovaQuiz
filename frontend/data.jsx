@@ -29,7 +29,21 @@ const CURRENT_USER = (window.API && window.API.getUser()) || {
   birthday: '',
 };
 
+// ── useLang — re-render hook for language changes ──────────────────────────
+// Call useLang() at the top of any component that contains translated strings.
+// The component will re-render automatically when window.setLang() is called.
+function useLang() {
+  const [, forceUpdate] = React.useReducer(x => x + 1, 0);
+  React.useEffect(() => {
+    const handler = () => forceUpdate();
+    window.addEventListener('language-changed', handler);
+    return () => window.removeEventListener('language-changed', handler);
+  }, []);
+  return window.CURRENT_LANG || 'en';
+}
+
 Object.assign(window, {
   TOPICS, TOPIC_BY_CODE, CURRENT_USER,
   POINTS_PER_CORRECT, FIRST_ANSWER_BONUS,
+  useLang,
 });
