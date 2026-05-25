@@ -10,8 +10,11 @@ from django.shortcuts import get_object_or_404
 from django.core.mail import send_mail
 from django.conf import settings
 
+from datetime import date as _date, timedelta
+from django.db.models import Sum
+
 from auth_sys.models import Account, WorkspaceInvitation
-from quiz.models import Quiz, Question, Answer, PracticeRecord
+from quiz.models import Quiz, Question, Answer, PracticeRecord, UserStat, ActivityEntry, TopicStat
 from hosting.models import Session, SessionPlayer, PlayerAnswer
 
 
@@ -519,19 +522,73 @@ def api_quiz_duplicate(request, quiz_id):
 def api_quiz_practice(request, quiz_id):
     quiz = get_object_or_404(Quiz, id=quiz_id)
     account = getattr(request.user, 'account', None)
+    data = _json_body(request)
+    correct   = max(0, int(data.get('correct', 0)))
+    total_qs  = max(correct, int(data.get('total', correct)))
 
-    # No rewards for playing your own quiz or replaying an already-rewarded quiz
+    # ── STATS — always tracked, even for own quizzes / replays ─────────────
+    today = _date.today()
+    stat, _ = UserStat.objects.get_or_create(user=request.user)
+    xp_earned = correct * 10
+
+    # Streak logic
+    if stat.streak_last_date is None:
+        stat.streak_current = 1
+    elif stat.streak_last_date == today:
+        pass  # already practiced today
+    elif (today - stat.streak_last_date).days == 1:
+        stat.streak_current += 1
+    else:
+        stat.streak_current = 1  # streak broken
+
+    if stat.streak_last_date != today:
+        stat.streak_last_date = today
+
+    stat.streak_longest = max(stat.streak_longest, stat.streak_current)
+    stat.xp += xp_earned
+    stat.quizzes_played += 1
+    stat.correct_total += correct
+    stat.questions_total += total_qs
+    stat.save()
+
+    # Daily activity entry
+    try:
+        entry = ActivityEntry.objects.get(user=request.user, date=today)
+        entry.xp        += xp_earned
+        entry.questions += total_qs
+        entry.quizzes   += 1
+        entry.save()
+    except ActivityEntry.DoesNotExist:
+        ActivityEntry.objects.create(
+            user=request.user, date=today,
+            xp=xp_earned, questions=total_qs, quizzes=1,
+        )
+
+    # Topic stat
+    if total_qs > 0 and quiz.topic:
+        ts, _ = TopicStat.objects.get_or_create(user=request.user, topic=quiz.topic)
+        ts.correct += correct
+        ts.total   += total_qs
+        ts.save()
+    # ───────────────────────────────────────────────────────────────────────
+
+    # Credits: only for first play of someone else's quiz
     if quiz.creator == request.user:
-        return JsonResponse({'credits_earned': 0, 'credits_total': account.credits if account else 0, 'already_rewarded': False})
+        return JsonResponse({
+            'credits_earned': 0,
+            'credits_total': account.credits if account else 0,
+            'already_rewarded': False,
+        })
 
     already = PracticeRecord.objects.filter(user=request.user, quiz=quiz).exists()
     if already:
-        return JsonResponse({'credits_earned': 0, 'credits_total': account.credits if account else 0, 'already_rewarded': True})
+        return JsonResponse({
+            'credits_earned': 0,
+            'credits_total': account.credits if account else 0,
+            'already_rewarded': True,
+        })
 
-    data = _json_body(request)
-    correct = max(0, int(data.get('correct', 0)))
     credits_earned = correct * 5
-
     PracticeRecord.objects.create(user=request.user, quiz=quiz)
     if credits_earned > 0 and account:
         account.credits += credits_earned
@@ -823,4 +880,116 @@ def api_session_results(request, session_id):
             {'username': p.user.username, 'score': p.score}
             for p in players
         ],
+    })
+
+
+# ─── PROFILE STATS ───────────────────────────────────────────────────────────
+
+_ACHIEVEMENTS = [
+    {'id': 'first_play', 'name': 'First Steps',  'desc': 'Complete your first quiz'},
+    {'id': 'on_fire',    'name': 'On Fire',       'desc': '7-day streak'},
+    {'id': 'dedicated',  'name': 'Dedicated',     'desc': '30-day streak'},
+    {'id': 'polymath',   'name': 'Polymath',       'desc': 'Play 5+ different topics'},
+    {'id': 'century',    'name': 'Century',        'desc': 'Complete 100 quizzes'},
+    {'id': 'scholar',    'name': 'Scholar',        'desc': 'Earn 1,000 XP'},
+    {'id': 'sharp',      'name': 'Sharp',          'desc': '90%+ accuracy in a topic (10q+)'},
+    {'id': 'mentor',     'name': 'Mentor',         'desc': 'Host 5 live sessions'},
+]
+
+_TOPIC_LABELS = {
+    'GK': 'General Knowledge', 'MV': 'Movies & TV',    'VG': 'Video Games',
+    'MU': 'Music',             'SC': 'Science & Nature','HS': 'History & Culture',
+    'IN': 'Internet & Pop',    'SP': 'Sports',          'LT': 'Literature',
+    'LG': 'Logic & Riddles',   'AN': 'Anime',           'CT': 'Cartoons',
+}
+
+
+@login_required
+def api_profile_stats(request):
+    user = request.user
+    today = _date.today()
+
+    stat, _ = UserStat.objects.get_or_create(user=user)
+
+    # ── weekly aggregates (last 7 days) ──────────────────────────────────────
+    week_start = today - timedelta(days=6)
+    week_qs = ActivityEntry.objects.filter(user=user, date__gte=week_start)
+    xp_this_week     = week_qs.aggregate(s=Sum('xp'))['s'] or 0
+    quizzes_this_week = week_qs.aggregate(s=Sum('quizzes'))['s'] or 0
+
+    # ── accuracy ─────────────────────────────────────────────────────────────
+    accuracy = 0.0
+    if stat.questions_total > 0:
+        accuracy = round(stat.correct_total / stat.questions_total * 100, 1)
+
+    # ── activity heatmap (last 26 weeks) ─────────────────────────────────────
+    heatmap_start = today - timedelta(weeks=26)
+    activity_rows = ActivityEntry.objects.filter(user=user, date__gte=heatmap_start)
+    activity = [
+        {'date': a.date.isoformat(), 'xp': a.xp, 'questions': a.questions}
+        for a in activity_rows
+    ]
+
+    # ── topic stats ──────────────────────────────────────────────────────────
+    raw_topics = TopicStat.objects.filter(user=user, total__gt=0)
+    topics = sorted(
+        [
+            {
+                'topic':    ts.topic,
+                'label':    _TOPIC_LABELS.get(ts.topic, ts.topic),
+                'correct':  ts.correct,
+                'total':    ts.total,
+                'accuracy': round(ts.correct / ts.total * 100, 1),
+            }
+            for ts in raw_topics
+        ],
+        key=lambda x: -x['accuracy'],
+    )
+
+    # ── rank ─────────────────────────────────────────────────────────────────
+    from django.contrib.auth.models import User as AuthUser
+    higher_count = UserStat.objects.filter(xp__gt=stat.xp).count()
+    total_users  = max(AuthUser.objects.count(), 1)
+    rank    = higher_count + 1
+    top_pct = round(rank / total_users * 100)
+
+    # ── achievements ─────────────────────────────────────────────────────────
+    topics_played   = raw_topics.count()
+    sessions_hosted = Session.objects.filter(host=user).count()
+    any_sharp = any(
+        t['accuracy'] >= 90 and t['total'] >= 10 for t in topics
+    )
+
+    def _unlocked(aid):
+        if aid == 'first_play': return stat.quizzes_played >= 1
+        if aid == 'on_fire':    return stat.streak_current >= 7 or stat.streak_longest >= 7
+        if aid == 'dedicated':  return stat.streak_current >= 30 or stat.streak_longest >= 30
+        if aid == 'polymath':   return topics_played >= 5
+        if aid == 'century':    return stat.quizzes_played >= 100
+        if aid == 'scholar':    return stat.xp >= 1000
+        if aid == 'sharp':      return any_sharp
+        if aid == 'mentor':     return sessions_hosted >= 5
+        return False
+
+    achievements = [
+        {**a, 'unlocked': _unlocked(a['id'])}
+        for a in _ACHIEVEMENTS
+    ]
+
+    return JsonResponse({
+        'xp':               stat.xp,
+        'xp_this_week':     xp_this_week,
+        'quizzes_played':   stat.quizzes_played,
+        'quizzes_this_week': quizzes_this_week,
+        'accuracy':         accuracy,
+        'correct_total':    stat.correct_total,
+        'questions_total':  stat.questions_total,
+        'streak_current':   stat.streak_current,
+        'streak_longest':   stat.streak_longest,
+        'activity':         activity,
+        'topics':           topics,
+        'rank':             rank,
+        'top_pct':          top_pct,
+        'joined':           user.date_joined.isoformat(),
+        'achievements':     achievements,
     })

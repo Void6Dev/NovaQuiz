@@ -22,6 +22,7 @@ const ROUTES = {
   analytics: 'analytics.html',
   settings:  'settings.html',
   shared:    'shared.html',
+  profile:   'profile.html',
 };
 
 function navigate(screen, params) {

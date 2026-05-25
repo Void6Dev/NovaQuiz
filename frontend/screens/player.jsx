@@ -702,7 +702,7 @@ function PlayerResult({ scores, total, quizTitle, quizId, onExit, onPlayAgain })
 
   useEffect(() => {
     if (!quizId) { setCreditInfo({ credits_earned: 0, already_rewarded: false, own_quiz: true }); return; }
-    window.API.post('/quizzes/' + quizId + '/practice/', { correct })
+    window.API.post('/quizzes/' + quizId + '/practice/', { correct, total })
       .then(data => {
         if (data.credits_total !== undefined) {
           window.API.saveUser({ ...window.CURRENT_USER, credits: data.credits_total });

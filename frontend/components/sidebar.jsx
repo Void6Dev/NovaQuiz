@@ -11,6 +11,7 @@ function Sidebar({ current, onLogout }) {
     { id: 'editor',    label: 'Editor',    icon: 'edit' },
     { id: 'sessions',  label: 'Sessions',  icon: 'users' },
     { id: 'analytics', label: 'Analytics', icon: 'chart' },
+    { id: 'profile',   label: 'You',       icon: 'user'   },
   ];
   const bottom = [
     { id: 'settings', label: 'Settings', icon: 'settings' },

@@ -111,6 +111,7 @@ function PageShell({ layout = 'app', current, children, theme: themeOverride, on
             { value: 'analytics', label: '06 — Analytics' },
             { value: 'settings',  label: '07 — Settings' },
             { value: 'sessions',  label: '08 — Sessions' },
+            { value: 'profile',   label: '09 — Profile'  },
           ]}
           onChange={(v) => window.navigate(v)}
         />

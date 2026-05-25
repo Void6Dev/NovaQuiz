@@ -61,4 +61,50 @@ class PracticeRecord(models.Model):
     class Meta:
         unique_together = ('user', 'quiz')
 
-    
+
+# ── Profile / Stats ──────────────────────────────────────────────────────────
+
+class UserStat(models.Model):
+    """Aggregate stats for a user — updated after every practice session."""
+    user             = models.OneToOneField(User, on_delete=models.CASCADE, related_name='stat')
+    xp               = models.PositiveIntegerField(default=0)
+    streak_current   = models.PositiveIntegerField(default=0)
+    streak_longest   = models.PositiveIntegerField(default=0)
+    streak_last_date = models.DateField(null=True, blank=True)
+    quizzes_played   = models.PositiveIntegerField(default=0)
+    correct_total    = models.PositiveIntegerField(default=0)
+    questions_total  = models.PositiveIntegerField(default=0)
+
+    def __str__(self):
+        return f"{self.user.username}: {self.xp} XP, streak {self.streak_current}"
+
+
+class ActivityEntry(models.Model):
+    """One row per user per day — feeds the heatmap."""
+    user      = models.ForeignKey(User, on_delete=models.CASCADE, related_name='activity_entries')
+    date      = models.DateField()
+    xp        = models.PositiveIntegerField(default=0)
+    questions = models.PositiveIntegerField(default=0)
+    quizzes   = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = ('user', 'date')
+        ordering = ['date']
+
+    def __str__(self):
+        return f"{self.user.username} {self.date}: {self.xp} XP"
+
+
+class TopicStat(models.Model):
+    """Per-user per-topic accuracy — updated after every practice session."""
+    user    = models.ForeignKey(User, on_delete=models.CASCADE, related_name='topic_stats')
+    topic   = models.CharField(max_length=10)
+    correct = models.PositiveIntegerField(default=0)
+    total   = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = ('user', 'topic')
+
+    def __str__(self):
+        pct = round(self.correct / self.total * 100) if self.total else 0
+        return f"{self.user.username} {self.topic}: {pct}%"

@@ -35,6 +35,9 @@ urlpatterns = [
     path('quizzes/<int:quiz_id>/questions/<int:question_id>/delete/', views.api_question_delete),
     path('quizzes/<int:quiz_id>/questions/<int:question_id>/image/',  views.api_question_image_upload),
 
+    # Profile
+    path('profile/stats/', views.api_profile_stats),
+
     # Sessions
     path('sessions/',                          views.api_session_list),
     path('sessions/create/',                   views.api_session_create),
