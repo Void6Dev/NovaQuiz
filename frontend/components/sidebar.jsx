@@ -1,6 +1,7 @@
 // === Sidebar — left-rail navigation ===
 // Used on dashboard, sessions, analytics, settings.
 // Navigates between pages via window.navigate(screen).
+import { useLang } from '/frontend/i18n.jsx';
 
 function Sidebar({ current, onLogout }) {
   useLang(); // re-render when language changes
