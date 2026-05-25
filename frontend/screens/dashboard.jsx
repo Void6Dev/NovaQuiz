@@ -4,6 +4,7 @@ function loadCovers() { try { return JSON.parse(localStorage.getItem(COVERS_KEY)
 function saveCovers(c) { try { localStorage.setItem(COVERS_KEY, JSON.stringify(c)); } catch {} }
 
 function Dashboard({ onNav }) {
+  window.useLang();
   const [tab, setTab]               = useState(() => window.getQueryParams().tab === 'mine' ? 'mine' : 'explore');
   const [exploreQuizzes, setExplore] = useState([]);
   const [myQuizzes, setMine]         = useState([]);
@@ -71,12 +72,12 @@ function Dashboard({ onNav }) {
   return (
     <div className="page fade-in" data-screen-label="02 Browse">
       <PageHeader
-        title={tab === 'mine' ? `My quizzes` : 'Browse'}
-        subtitle={tab === 'mine' ? `${myQuizzes.length} quiz${myQuizzes.length !== 1 ? 'zes' : ''} in your library.` : 'Discover public quizzes from the community.'}
+        title={tab === 'mine' ? t('dash.title_mine') : t('dash.title_browse')}
+        subtitle={tab === 'mine' ? `${myQuizzes.length} ${t('dash.sub_mine')}` : t('dash.sub_browse')}
       >
         {tab === 'mine' && (
           <button className="btn btn--primary" onClick={() => onNav('editor', { newQuiz: true })}>
-            <Icon name="plus" size={15} /> New quiz
+            <Icon name="plus" size={15} /> {t('dash.new_quiz')}
           </button>
         )}
       </PageHeader>
@@ -88,24 +89,24 @@ function Dashboard({ onNav }) {
           border: '1px solid var(--border)', padding: 4, gap: 2,
         }}>
           {[
-            { id: 'explore', label: 'Browse',     icon: 'compass' },
-            { id: 'mine',    label: 'My Quizzes', icon: 'folder'  },
-          ].map(t => (
+            { id: 'explore', label: t('dash.tab_browse'), icon: 'compass' },
+            { id: 'mine',    label: t('dash.tab_mine'),   icon: 'folder'  },
+          ].map(item => (
             <button
-              key={t.id}
-              onClick={() => switchTab(t.id)}
+              key={item.id}
+              onClick={() => switchTab(item.id)}
               style={{
                 padding: '8px 18px', borderRadius: 10, fontSize: 13, fontWeight: 500,
                 display: 'flex', alignItems: 'center', gap: 7,
-                background: tab === t.id ? 'var(--bg)' : 'transparent',
-                boxShadow: tab === t.id ? 'var(--shadow-sm)' : 'none',
-                color: tab === t.id ? 'var(--text)' : 'var(--text-muted)',
+                background: tab === item.id ? 'var(--bg)' : 'transparent',
+                boxShadow: tab === item.id ? 'var(--shadow-sm)' : 'none',
+                color: tab === item.id ? 'var(--text)' : 'var(--text-muted)',
                 transition: 'all 150ms var(--ease)',
               }}
             >
-              <Icon name={t.icon} size={14} />
-              {t.label}
-              {t.id === 'mine' && !loading && myQuizzes.length > 0 && (
+              <Icon name={item.icon} size={14} />
+              {item.label}
+              {item.id === 'mine' && !loading && myQuizzes.length > 0 && (
                 <span style={{
                   fontSize: 11, fontWeight: 600, padding: '1px 6px', borderRadius: 99,
                   background: tab === 'mine' ? 'var(--accent)' : 'var(--bg-2)',
@@ -120,27 +121,31 @@ function Dashboard({ onNav }) {
       {/* Toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flex: 1 }}>
-          <SearchInput value={search} onChange={setSearch} placeholder="Search quizzes…" />
+          <SearchInput value={search} onChange={setSearch} placeholder={t('dash.search')} />
           {tab === 'explore' && (
-            <SearchInput value={authorSearch} onChange={setAuthor} placeholder="Search by author…" />
+            <SearchInput value={authorSearch} onChange={setAuthor} placeholder={t('dash.search_author')} />
           )}
           <div style={{
             display: 'flex', background: 'var(--surface)', borderRadius: 'var(--r-md)',
             border: '1px solid var(--border)', padding: 3, flexShrink: 0,
           }}>
-            {['all', 'live', 'draft'].map(f => (
+            {[
+              { id: 'all',   label: t('dash.all') },
+              { id: 'live',  label: t('dash.status_live') },
+              { id: 'draft', label: t('dash.status_draft') },
+            ].map(f => (
               <button
-                key={f}
-                onClick={() => setFilter(f)}
+                key={f.id}
+                onClick={() => setFilter(f.id)}
                 style={{
                   padding: '6px 14px', fontSize: 13, fontWeight: 500,
                   borderRadius: 7, textTransform: 'capitalize',
-                  background: filter === f ? 'var(--bg)' : 'transparent',
-                  color: filter === f ? 'var(--text)' : 'var(--text-muted)',
-                  boxShadow: filter === f ? 'var(--shadow-sm)' : 'none',
+                  background: filter === f.id ? 'var(--bg)' : 'transparent',
+                  color: filter === f.id ? 'var(--text)' : 'var(--text-muted)',
+                  boxShadow: filter === f.id ? 'var(--shadow-sm)' : 'none',
                   transition: 'all 150ms var(--ease)',
                 }}
-              >{f}</button>
+              >{f.label}</button>
             ))}
           </div>
         </div>
@@ -172,14 +177,12 @@ function Dashboard({ onNav }) {
       <TopicChips selected={topicFilter} onSelect={setTopicFilter} />
 
       {loading ? (
-        <div style={{ padding: '80px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading quizzes…</div>
+        <div style={{ padding: '80px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>{t('dash.loading')}</div>
       ) : filtered.length === 0 ? (
         <EmptyState
           onCreate={tab === 'mine' ? () => onNav('editor', { newQuiz: true }) : null}
-          message={tab === 'mine' ? 'No quizzes yet' : 'Nothing found'}
-          hint={tab === 'mine'
-            ? "You haven't created any quizzes. Start with a new one!"
-            : "Try a different search or filter."}
+          message={tab === 'mine' ? t('dash.empty_mine') : t('dash.empty_browse')}
+          hint={tab === 'mine' ? t('dash.empty_mine_hint') : t('dash.empty_hint')}
         />
       ) : view === 'grid' ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 20 }}>
@@ -225,21 +228,21 @@ function Dashboard({ onNav }) {
               <Icon name="trash" size={20} />
             </div>
             <h3 style={{ fontSize: 19, fontWeight: 600, letterSpacing: '-0.02em', marginBottom: 6 }}>
-              Delete this quiz?
+              {t('dash.delete_title')}
             </h3>
             <p style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 22 }}>
-              <span style={{ color: 'var(--text)', fontWeight: 500 }}>"{confirmDelete.title}"</span> will be removed from your library.
-              {confirmDelete.plays > 0 && <> All <span className="mono">{confirmDelete.plays.toLocaleString()}</span> session plays remain in analytics.</>}
-              {' '}This can't be undone.
+              <span style={{ color: 'var(--text)', fontWeight: 500 }}>"{confirmDelete.title}"</span> {t('dash.delete_msg')}
+              {confirmDelete.plays > 0 && <> <span className="mono">{confirmDelete.plays.toLocaleString()}</span> {t('dash.delete_plays')}</>}
+              {' '}{t('dash.cant_undo')}
             </p>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-              <button className="btn btn--secondary" onClick={() => setConfirmDelete(null)}>Cancel</button>
+              <button className="btn btn--secondary" onClick={() => setConfirmDelete(null)}>{t('dash.cancel')}</button>
               <button
                 className="btn"
                 style={{ background: 'oklch(60% 0.20 25)', color: 'white' }}
                 onClick={() => { deleteQuiz(confirmDelete.id); setConfirmDelete(null); }}
               >
-                <Icon name="trash" size={14} /> Delete quiz
+                <Icon name="trash" size={14} /> {t('dash.delete_confirm')}
               </button>
             </div>
           </div>
@@ -335,12 +338,12 @@ function QuizCard({ quiz, isOwn, onOpen, onPlay, onRunLive, onDelete, onDuplicat
 
           {isOwn && (
             <div className="holo-card__actions" onClick={e => e.stopPropagation()}>
-              <Tooltip label="Edit">
+              <Tooltip label={t('dash.edit')}>
                 <button className="holo-card__action" onClick={onOpen}>
                   <Icon name="edit" size={14} />
                 </button>
               </Tooltip>
-              <Tooltip label={quiz.cover ? 'Replace cover' : 'Set cover'}>
+              <Tooltip label={quiz.cover ? t('dash.replace_cover') : t('dash.set_cover')}>
                 <button className="holo-card__action" onClick={() => fileInput.current?.click()}>
                   <Icon name="image" size={14} />
                 </button>
@@ -365,7 +368,7 @@ function QuizCard({ quiz, isOwn, onOpen, onPlay, onRunLive, onDelete, onDuplicat
 
           {!isOwn && (
             <div className="holo-card__actions" onClick={e => e.stopPropagation()}>
-              <Tooltip label="Duplicate to my quizzes">
+              <Tooltip label={t('dash.dup_mine')}>
                 <button className="holo-card__action" onClick={(e) => { e.stopPropagation(); onDuplicate(); }}>
                   <Icon name="copy" size={14} />
                 </button>
@@ -382,7 +385,7 @@ function QuizCard({ quiz, isOwn, onOpen, onPlay, onRunLive, onDelete, onDuplicat
             <>
               <div className="holo-card__drop">
                 <Icon name="upload" size={20} />
-                <span>Drop image to set as cover</span>
+                <span>{t('dash.drop_cover')}</span>
               </div>
               <input
                 ref={fileInput}
@@ -413,11 +416,11 @@ function QuizCard({ quiz, isOwn, onOpen, onPlay, onRunLive, onDelete, onDuplicat
           <div className="holo-card__meta">
             <span><span className="mono holo-card__num">{quiz.questions}</span> Qs</span>
             <span className="holo-card__sep">·</span>
-            <span><span className="mono holo-card__num">{quiz.plays.toLocaleString()}</span> plays</span>
+            <span><span className="mono holo-card__num">{quiz.plays.toLocaleString()}</span> {t('dash.plays')}</span>
             {quiz.avgScore != null && (
               <>
                 <span className="holo-card__sep">·</span>
-                <span><span className="mono holo-card__num">{quiz.avgScore}%</span> avg</span>
+                <span><span className="mono holo-card__num">{quiz.avgScore}%</span> {t('dash.avg')}</span>
               </>
             )}
             <span className="holo-card__edited">{quiz.lastEdited}</span>
@@ -442,11 +445,11 @@ function CardMenu({ onRunLive, onDuplicate, onClearCover, onDelete, hasCover, on
       minWidth: 180, padding: 4, boxShadow: 'var(--shadow-lg)',
       zIndex: 20,
     }}>
-      <MenuItem icon="bolt"  label="Run live"  onClick={onRunLive} />
-      <MenuItem icon="copy"  label="Duplicate" onClick={onDuplicate} />
-      {hasCover && <MenuItem icon="x" label="Remove cover" onClick={onClearCover} />}
+      <MenuItem icon="bolt"  label={t('dash.run_live')}     onClick={onRunLive} />
+      <MenuItem icon="copy"  label={t('dash.duplicate')}    onClick={onDuplicate} />
+      {hasCover && <MenuItem icon="x" label={t('dash.remove_cover')} onClick={onClearCover} />}
       <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
-      <MenuItem icon="trash" label="Delete" danger onClick={onDelete} />
+      <MenuItem icon="trash" label={t('dash.delete')} danger onClick={onDelete} />
     </div>
   );
 }
@@ -623,7 +626,7 @@ function QuizListView({ quizzes, myUsername, onOpen, onPlay, onRunLive, onDelete
         fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em',
         color: 'var(--text-muted)', fontWeight: 600,
       }}>
-        <div>Title</div><div>Author</div><div>Status</div><div>Qs</div><div>Plays</div><div>Updated</div><div />
+        <div>{t('dash.col_title')}</div><div>{t('dash.col_author')}</div><div>{t('dash.col_status')}</div><div>{t('dash.col_qs')}</div><div>{t('dash.col_plays')}</div><div>{t('dash.col_updated')}</div><div />
       </div>
       {quizzes.map(q => {
         const topic  = window.TOPIC_BY_CODE[q.topic] || { label: q.topic, hue: 200 };
@@ -664,13 +667,13 @@ function QuizListView({ quizzes, myUsername, onOpen, onPlay, onRunLive, onDelete
             <div className="mono" style={{ fontSize: 13 }}>{q.plays.toLocaleString()}</div>
             <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{q.lastEdited}</div>
             <div className="quiz-row__actions" onClick={e => e.stopPropagation()}>
-              <Tooltip label="Practice"><button className="btn btn--ghost btn--icon" onClick={() => onPlay(q.id)}><Icon name="play" size={14} /></button></Tooltip>
+              <Tooltip label={t('dash.practice')}><button className="btn btn--ghost btn--icon" onClick={() => onPlay(q.id)}><Icon name="play" size={14} /></button></Tooltip>
               {isOwn && <>
-                <Tooltip label="Run live"><button className="btn btn--ghost btn--icon" onClick={() => onRunLive(q.id)}><Icon name="bolt" size={14} /></button></Tooltip>
-                <Tooltip label="Edit"><button className="btn btn--ghost btn--icon" onClick={() => onOpen(q.id)}><Icon name="edit" size={14} /></button></Tooltip>
-                <Tooltip label="Delete"><button className="btn btn--ghost btn--icon" style={{ color: 'oklch(55% 0.18 25)' }} onClick={() => onDelete(q)}><Icon name="trash" size={14} /></button></Tooltip>
+                <Tooltip label={t('dash.run_live')}><button className="btn btn--ghost btn--icon" onClick={() => onRunLive(q.id)}><Icon name="bolt" size={14} /></button></Tooltip>
+                <Tooltip label={t('dash.edit')}><button className="btn btn--ghost btn--icon" onClick={() => onOpen(q.id)}><Icon name="edit" size={14} /></button></Tooltip>
+                <Tooltip label={t('dash.delete')}><button className="btn btn--ghost btn--icon" style={{ color: 'oklch(55% 0.18 25)' }} onClick={() => onDelete(q)}><Icon name="trash" size={14} /></button></Tooltip>
               </>}
-              <Tooltip label="Duplicate"><button className="btn btn--ghost btn--icon" onClick={() => onDuplicate(q)}><Icon name="copy" size={14} /></button></Tooltip>
+              <Tooltip label={t('dash.duplicate')}><button className="btn btn--ghost btn--icon" onClick={() => onDuplicate(q)}><Icon name="copy" size={14} /></button></Tooltip>
             </div>
           </div>
         );
@@ -698,10 +701,10 @@ function CreditsStat({ credits }) {
       }} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2, position: 'relative' }}>
         <Icon name="star" size={13} style={{ color: 'var(--accent-strong)' }} />
-        <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Your credits</span>
+        <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('dash.your_credits')}</span>
       </div>
       <div className="mono" style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 6, position: 'relative' }}>{credits.toLocaleString()}</div>
-      <div style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 2 }}>+5 per correct · +1 first-bonus</div>
+      <div style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 2 }}>{t('dash.credits_hint')}</div>
     </div>
   );
 }
@@ -720,7 +723,7 @@ function TopicChips({ selected, onSelect }) {
           borderColor: selected === 'all' ? 'var(--text)' : 'var(--border)',
           padding: '6px 12px', fontSize: 12,
         }}
-      >All topics</button>
+      >{t('dash.all_topics')}</button>
       {TOPICS.map(t => (
         <button
           key={t.code}
@@ -762,7 +765,7 @@ function EmptyState({ onCreate, message, hint }) {
       </p>
       {onCreate && (
         <button className="btn btn--primary" style={{ marginTop: 8 }} onClick={onCreate}>
-          <Icon name="plus" size={14} /> New quiz
+          <Icon name="plus" size={14} /> {t('dash.new_quiz')}
         </button>
       )}
     </div>

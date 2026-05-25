@@ -89,9 +89,9 @@ function ActivityHeatmap({ activity = [], loading }) {
         <h3 style={{
           fontSize: 13, fontWeight: 600, color: 'var(--text-muted)',
           textTransform: 'uppercase', letterSpacing: '0.06em',
-        }}>Activity</h3>
+        }}>{t('prof.activity')}</h3>
         <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>
-          Last 26 weeks · {activeDays} active day{activeDays !== 1 ? 's' : ''}
+          {t('prof.last_26w')} · {activeDays} {activeDays !== 1 ? t('prof.active_days') : t('prof.active_day')}
         </span>
       </div>
 
@@ -161,7 +161,7 @@ function ActivityHeatmap({ activity = [], loading }) {
 
       {/* Legend */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end', marginTop: 10 }}>
-        <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>Less</span>
+        <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>{t('prof.less')}</span>
         {[
           'var(--bg-2)',
           'oklch(from var(--accent) l c h / 0.22)',
@@ -171,7 +171,7 @@ function ActivityHeatmap({ activity = [], loading }) {
         ].map((c, i) => (
           <div key={i} style={{ width: 11, height: 11, borderRadius: 2, background: c }} />
         ))}
-        <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>More</span>
+        <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>{t('prof.more')}</span>
       </div>
     </div>
   );
@@ -185,7 +185,7 @@ function StrongestTopics({ topics = [], loading }) {
       <h3 style={{
         fontSize: 13, fontWeight: 600, color: 'var(--text-muted)',
         textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 16,
-      }}>Strongest Topics</h3>
+      }}>{t('prof.strongest')}</h3>
 
       {loading ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -198,7 +198,7 @@ function StrongestTopics({ topics = [], loading }) {
           textAlign: 'center', padding: '24px 0',
           color: 'var(--text-faint)', fontSize: 13,
         }}>
-          Play quizzes to see your topic stats
+          {t('prof.no_topics')}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -276,9 +276,9 @@ function Achievements({ achievements = [], loading }) {
         <h3 style={{
           fontSize: 13, fontWeight: 600, color: 'var(--text-muted)',
           textTransform: 'uppercase', letterSpacing: '0.06em',
-        }}>Achievements</h3>
+        }}>{t('prof.achievements')}</h3>
         <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>
-          {loading ? '—' : `${unlocked} / ${achievements.length} unlocked`}
+          {loading ? '—' : `${unlocked} / ${achievements.length} ${t('prof.unlocked')}`}
         </span>
       </div>
       {loading ? (
@@ -299,6 +299,7 @@ function Achievements({ achievements = [], loading }) {
 // ── Main profile page ─────────────────────────────────────────────────────────
 
 function ProfilePage({ onNav }) {
+  window.useLang();
   const [stats, setStats]   = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]   = useState('');
@@ -320,8 +321,8 @@ function ProfilePage({ onNav }) {
   return (
     <div className="page fade-in">
       <PageHeader
-        title="Your profile"
-        subtitle="XP, streaks, accuracy and achievements."
+        title={t('prof.your_profile')}
+        subtitle={t('prof.subtitle')}
       />
 
       {/* ── Profile header card ── */}
@@ -350,7 +351,7 @@ function ProfilePage({ onNav }) {
               display: 'flex', gap: 8, alignItems: 'center',
             }}>
               <span className="mono">@{u.username}</span>
-              {joinedStr && <span>· Joined {joinedStr}</span>}
+              {joinedStr && <span>· {t('prof.joined')} {joinedStr}</span>}
             </div>
             <h2 style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1 }}>
               {u.name || u.username}
@@ -367,7 +368,7 @@ function ProfilePage({ onNav }) {
                 )}
                 {stats.streak_longest > 0 && (
                   <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>
-                    Longest streak: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{stats.streak_longest} days</span>
+                    {t('prof.longest_streak')}: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{stats.streak_longest} {t('prof.days')}</span>
                   </span>
                 )}
               </div>
@@ -389,7 +390,7 @@ function ProfilePage({ onNav }) {
               <div style={{
                 fontSize: 10, color: 'var(--text-faint)',
                 textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600,
-              }}>Day Streak</div>
+              }}>{t('prof.day_streak')}</div>
             </div>
           )}
         </div>
@@ -398,20 +399,20 @@ function ProfilePage({ onNav }) {
       {/* ── Stat tiles ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }}>
         <StatTile
-          icon="star" label="Total XP" accent
+          icon="star" label={t('prof.total_xp')} accent
           value={loading ? '—' : (stats?.xp ?? 0).toLocaleString()}
-          sub={!loading && stats?.xp_this_week > 0 ? `+${stats.xp_this_week.toLocaleString()} this week` : ''}
+          sub={!loading && stats?.xp_this_week > 0 ? `+${stats.xp_this_week.toLocaleString()} ${t('prof.this_week')}` : ''}
         />
         <StatTile
-          icon="play" label="Quizzes Played"
+          icon="play" label={t('prof.quizzes_played')}
           value={loading ? '—' : (stats?.quizzes_played ?? 0).toLocaleString()}
-          sub={!loading && stats?.quizzes_this_week > 0 ? `+${stats.quizzes_this_week} this week` : ''}
+          sub={!loading && stats?.quizzes_this_week > 0 ? `+${stats.quizzes_this_week} ${t('prof.this_week')}` : ''}
         />
         <StatTile
-          icon="check" label="Accuracy"
+          icon="check" label={t('prof.accuracy')}
           value={loading ? '—' : (stats?.accuracy != null ? `${stats.accuracy}%` : '—')}
           sub={!loading && stats?.questions_total > 0
-            ? `${stats.correct_total?.toLocaleString()} of ${stats.questions_total?.toLocaleString()} correct`
+            ? `${stats.correct_total?.toLocaleString()} ${t('prof.correct_of')} ${stats.questions_total?.toLocaleString()} ${t('prof.correct')}`
             : ''}
         />
       </div>
@@ -431,7 +432,7 @@ function ProfilePage({ onNav }) {
           background: 'oklch(95% 0.04 25)', color: 'oklch(40% 0.16 25)',
           fontSize: 13,
         }}>
-          Could not load stats: {error}
+          {t('prof.load_err')} {error}
         </div>
       )}
 

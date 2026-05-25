@@ -1,9 +1,10 @@
 // === Analytics ===
 function Analytics({ onNav }) {
+  window.useLang();
   const [range, setRange] = useState('7d');
   return (
     <div className="page fade-in" data-screen-label="06 Analytics">
-      <PageHeader title="Analytics" subtitle="Performance across all your quizzes — drill down into what works and what doesn't.">
+      <PageHeader title={t('anal.title')} subtitle={t('anal.subtitle')}>
         <div style={{
           display: 'flex', background: 'var(--surface)', borderRadius: 'var(--r-md)',
           border: '1px solid var(--border)', padding: 3,
@@ -23,36 +24,36 @@ function Analytics({ onNav }) {
             >{r}</button>
           ))}
         </div>
-        <button className="btn btn--secondary"><Icon name="share" size={15} /> Export CSV</button>
+        <button className="btn btn--secondary"><Icon name="share" size={15} /> {t('anal.export')}</button>
       </PageHeader>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
-        <Stat label="Sessions" value="1,284" delta="+18%" hint="last 7 days" />
-        <Stat label="Completion" value="91.2%" delta="+2.1%" />
-        <Stat label="Avg. score" value="73%" delta="+4%" />
-        <Stat label="Avg. duration" value="4:32" hint="per session" />
+        <Stat label={t('anal.sessions')}   value="1,284" delta="+18%" hint={t('anal.last_7d')} />
+        <Stat label={t('anal.completion')} value="91.2%" delta="+2.1%" />
+        <Stat label={t('anal.avg_score')}  value="73%"   delta="+4%" />
+        <Stat label={t('anal.avg_dur')}    value="4:32"  hint={t('anal.per_session')} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 24 }}>
         <div className="card" style={{ padding: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24 }}>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Plays over time</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('anal.plays_time')}</div>
               <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.02em', marginTop: 4 }}>1,284 sessions</div>
             </div>
             <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--text-muted)' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--text)' }} /> This week
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--text)' }} /> {t('anal.this_week')}
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--accent)' }} /> Last week
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--accent)' }} /> {t('anal.last_week')}
               </span>
             </div>
           </div>
           <SparkChart />
         </div>
         <div className="card" style={{ padding: 24 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 16 }}>Score distribution</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 16 }}>{t('anal.score_dist')}</div>
           <ScoreDistribution />
         </div>
       </div>
@@ -60,16 +61,16 @@ function Analytics({ onNav }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 16 }}>
         <div className="card" style={{ padding: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Top quizzes</div>
-            <button className="btn btn--ghost btn--sm">View all</button>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('anal.top_quizzes')}</div>
+            <button className="btn btn--ghost btn--sm">{t('anal.view_all')}</button>
           </div>
           <TopQuizzes onOpen={() => onNav('editor')} />
         </div>
 
         <div className="card" style={{ padding: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Hardest questions</div>
-            <span className="pill"><Icon name="sparkle" size={11} /> AI-flagged</span>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('anal.hardest')}</div>
+            <span className="pill"><Icon name="sparkle" size={11} /> {t('anal.ai_flagged')}</span>
           </div>
           <HardestQuestions />
         </div>
@@ -92,13 +93,10 @@ function SparkChart() {
   return (
     <div style={{ position: 'relative', height: 200 }}>
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%' }}>
-        {/* gridlines */}
         {[0, 25, 50, 75, 100].map(y => (
           <line key={y} x1={0} y1={y} x2={100} y2={y} stroke="var(--border)" strokeWidth={0.2} vectorEffect="non-scaling-stroke" />
         ))}
-        {/* last week */}
         <path d={toPath(points2)} fill="none" stroke="var(--accent)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" strokeDasharray="3 3" />
-        {/* this week area */}
         <path d={toPath(points1) + ` L 100 100 L 0 100 Z`} fill="oklch(15% 0.005 270 / 0.06)" />
         <path d={toPath(points1)} fill="none" stroke="var(--text)" strokeWidth={1.8} vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
@@ -168,7 +166,7 @@ function TopQuizzes({ onOpen }) {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.title}</div>
             <div style={{ fontSize: 12, color: 'var(--text-faint)' }}>
-              <span className="mono">{q.plays.toLocaleString()}</span> plays · <span className="mono">{q.avgScore || '—'}%</span> avg
+              <span className="mono">{q.plays.toLocaleString()}</span> {t('dash.plays')} · <span className="mono">{q.avgScore || '—'}%</span> {t('dash.avg')}
             </div>
           </div>
           <div className="mono" style={{

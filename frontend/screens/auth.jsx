@@ -55,6 +55,7 @@ function Auth({ mode: initialMode = 'login', onSuccess, onSwitch }) {
 }
 
 function LoginForm({ onSuccess, onSwitch }) {
+  window.useLang();
   const [username, setUsername] = useState('alex');
   const [password, setPassword] = useState('');
   const [showPwd, setShowPwd] = useState(false);
@@ -64,14 +65,14 @@ function LoginForm({ onSuccess, onSwitch }) {
   const submit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!username || !password) return setError('Please fill in both fields.');
+    if (!username || !password) return setError(t('auth.err_both'));
     setSubmitting(true);
     try {
       const user = await window.API.post('/auth/login/', { username, password });
       window.API.saveUser(user);
       onSuccess();
     } catch (err) {
-      setError(err.message || 'Login failed.');
+      setError(err.message || t('auth.err_login'));
       setSubmitting(false);
     }
   };
@@ -79,16 +80,16 @@ function LoginForm({ onSuccess, onSwitch }) {
   return (
     <form onSubmit={submit} className="fade-in">
       <h1 style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.03em', marginBottom: 8 }}>
-        Welcome back
+        {t('auth.welcome')}
       </h1>
       <p style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 32 }}>
-        Sign in to your Quiz studio. New here?{' '}
+        {t('auth.login_sub')}{' '}{t('auth.new_here')}{' '}
         <a onClick={onSwitch} style={{ color: 'var(--text)', cursor: 'pointer', fontWeight: 500, textDecoration: 'underline', textUnderlineOffset: 3 }}>
-          Create an account
+          {t('auth.create_acct')}
         </a>
       </p>
 
-      <FormField label="Username">
+      <FormField label={t('auth.username')}>
         <input
           autoFocus className="input input--lg"
           value={username} onChange={e => setUsername(e.target.value)}
@@ -97,8 +98,8 @@ function LoginForm({ onSuccess, onSwitch }) {
         />
       </FormField>
 
-      <FormField label="Password" trailing={
-        <a onClick={() => {}} style={{ fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer' }}>Forgot?</a>
+      <FormField label={t('auth.password')} trailing={
+        <a onClick={() => {}} style={{ fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer' }}>{t('auth.forgot')}</a>
       }>
         <div style={{ position: 'relative' }}>
           <input
@@ -121,7 +122,7 @@ function LoginForm({ onSuccess, onSwitch }) {
       {error && <div className="form-error">{error}</div>}
 
       <button type="submit" className="btn btn--primary btn--lg" disabled={submitting} style={{ width: '100%', marginTop: 8 }}>
-        {submitting ? 'Signing in…' : <>Sign in <Icon name="arrowRight" size={14} /></>}
+        {submitting ? t('auth.signing_in') : <>{t('auth.sign_in')} <Icon name="arrowRight" size={14} /></>}
       </button>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '24px 0', color: 'var(--text-faint)', fontSize: 12 }}>
@@ -131,7 +132,7 @@ function LoginForm({ onSuccess, onSwitch }) {
       </div>
 
       <button type="button" className="btn btn--secondary btn--lg" style={{ width: '100%' }}>
-        Continue as guest
+        {t('auth.guest')}
       </button>
 
       <FormStyles />
@@ -140,6 +141,7 @@ function LoginForm({ onSuccess, onSwitch }) {
 }
 
 function RegisterForm({ onSuccess, onSwitch }) {
+  window.useLang();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -151,15 +153,15 @@ function RegisterForm({ onSuccess, onSwitch }) {
   const submit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!username || !email || !password) return setError('Please fill in all fields.');
-    if (password.length < 8) return setError('Password must be at least 8 characters.');
+    if (!username || !email || !password) return setError(t('auth.err_all'));
+    if (password.length < 8) return setError(t('auth.err_pw'));
     setSubmitting(true);
     try {
       const user = await window.API.post('/auth/register/', { username, email, password });
       window.API.saveUser(user);
       onSuccess();
     } catch (err) {
-      setError(err.message || 'Registration failed.');
+      setError(err.message || t('auth.err_register'));
       setSubmitting(false);
     }
   };
@@ -167,16 +169,16 @@ function RegisterForm({ onSuccess, onSwitch }) {
   return (
     <form onSubmit={submit} className="fade-in">
       <h1 style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.03em', marginBottom: 8 }}>
-        Create your account
+        {t('auth.reg_title')}
       </h1>
       <p style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 32 }}>
-        Start hosting your first quiz in minutes.{' '}
+        {t('auth.reg_sub')}{' '}
         <a onClick={onSwitch} style={{ color: 'var(--text)', cursor: 'pointer', fontWeight: 500, textDecoration: 'underline', textUnderlineOffset: 3 }}>
-          Sign in instead
+          {t('auth.sign_instead')}
         </a>
       </p>
 
-      <FormField label="Username" hint="Letters, numbers, _ and . — visible to others.">
+      <FormField label={t('auth.username')} hint={t('auth.uname_hint')}>
         <div style={{ position: 'relative' }}>
           <span className="mono" style={{
             position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
@@ -192,7 +194,7 @@ function RegisterForm({ onSuccess, onSwitch }) {
         </div>
       </FormField>
 
-      <FormField label="Email">
+      <FormField label={t('auth.email')}>
         <input
           className="input input--lg"
           type="email"
@@ -202,7 +204,7 @@ function RegisterForm({ onSuccess, onSwitch }) {
         />
       </FormField>
 
-      <FormField label="Password" hint="At least 8 characters.">
+      <FormField label={t('auth.password')} hint={t('auth.pw_min')}>
         <input
           className="input input--lg"
           type="password"
@@ -217,11 +219,16 @@ function RegisterForm({ onSuccess, onSwitch }) {
 
       <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13, color: 'var(--text-muted)', marginBottom: 16, cursor: 'pointer' }}>
         <input type="checkbox" defaultChecked style={{ marginTop: 3, accentColor: 'var(--text)' }} />
-        <span>I agree to the <a style={{ color: 'var(--text)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Terms</a> and <a style={{ color: 'var(--text)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Privacy</a>.</span>
+        <span>
+          {t('auth.agree')}{' '}
+          <a style={{ color: 'var(--text)', textDecoration: 'underline', textUnderlineOffset: 2 }}>{t('auth.terms')}</a>
+          {' '}{t('auth.and')}{' '}
+          <a style={{ color: 'var(--text)', textDecoration: 'underline', textUnderlineOffset: 2 }}>{t('auth.privacy')}</a>.
+        </span>
       </label>
 
       <button type="submit" className="btn btn--primary btn--lg" disabled={submitting} style={{ width: '100%' }}>
-        {submitting ? 'Creating account…' : <>Create account <Icon name="arrowRight" size={14} /></>}
+        {submitting ? t('auth.creating') : <>{t('auth.create')} <Icon name="arrowRight" size={14} /></>}
       </button>
       <FormStyles />
     </form>
@@ -253,7 +260,7 @@ function passwordStrength(p) {
 }
 
 function PasswordStrength({ strength }) {
-  const labels = ['Too short', 'Weak', 'Okay', 'Strong', 'Excellent'];
+  const labels = [t('auth.pw0'), t('auth.pw1'), t('auth.pw2'), t('auth.pw3'), t('auth.pw4')];
   const colors = ['var(--danger)', 'oklch(68% 0.16 45)', 'oklch(78% 0.16 75)', 'oklch(70% 0.16 130)', 'oklch(60% 0.18 145)'];
   return (
     <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -292,22 +299,18 @@ function FormStyles() {
 function AuthVisual() {
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
-      {/* gradient orb */}
       <div style={{
         position: 'absolute', top: '-20%', right: '-20%',
         width: '90%', aspectRatio: '1',
         background: 'radial-gradient(circle at 30% 30%, oklch(85% 0.18 130 / 0.4), transparent 60%)',
         filter: 'blur(40px)',
       }} />
-
       <div style={{
         position: 'absolute', bottom: '-30%', left: '-10%',
         width: '70%', aspectRatio: '1',
         background: 'radial-gradient(circle, oklch(70% 0.18 290 / 0.18), transparent 60%)',
         filter: 'blur(60px)',
       }} />
-
-      {/* stacked cards */}
       <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center' }}>
         <div style={{ position: 'relative', width: 360, height: 480 }}>
           <FloatingCard rotate={-6} offset={[-30, -16]}>

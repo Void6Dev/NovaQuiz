@@ -1,5 +1,6 @@
 // === Sessions browser — public live sessions ===
 function Sessions({ onNav }) {
+  window.useLang();
   const [code, setCode] = useState('');
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all'); // all | open | running
@@ -29,7 +30,7 @@ function Sessions({ onNav }) {
       const session = await window.API.post('/sessions/join/', { code: cleaned });
       onNav('live', { sessionId: session.id });
     } catch (err) {
-      setError(err.message || 'Session not found. Check the code and try again.');
+      setError(err.message || t('sess.no_match'));
     } finally {
       setJoining(false);
     }
@@ -37,9 +38,9 @@ function Sessions({ onNav }) {
 
   return (
     <div className="page fade-in" data-screen-label="08 Sessions">
-      <PageHeader title="Live sessions" subtitle="Join a session with a code, or browse what's open right now.">
+      <PageHeader title={t('sess.title')} subtitle={t('sess.subtitle')}>
         <button className="btn btn--accent" onClick={() => onNav('dashboard')}>
-          <Icon name="bolt" size={15} /> Host a session
+          <Icon name="bolt" size={15} /> {t('sess.host')}
         </button>
       </PageHeader>
 
@@ -47,7 +48,7 @@ function Sessions({ onNav }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 32, alignItems: 'center' }}>
           <form onSubmit={submitCode}>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
-              Got a code?
+              {t('sess.got_code')}
             </div>
             <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
               <input
@@ -63,7 +64,7 @@ function Sessions({ onNav }) {
                 autoFocus
               />
               <button type="submit" className="btn btn--primary btn--lg" disabled={code.length < 6 || joining}>
-                {joining ? 'Joining…' : <><span>Join</span> <Icon name="arrowRight" size={14} /></>}
+                {joining ? t('sess.joining') : <><span>{t('sess.join')}</span> <Icon name="arrowRight" size={14} /></>}
               </button>
             </div>
             {error && (
@@ -75,29 +76,33 @@ function Sessions({ onNav }) {
               </div>
             )}
             <div style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 12 }}>
-              6 letters or digits. Get the code from the host's lobby screen.
+              {t('sess.code_hint')}
             </div>
           </form>
 
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
-              Or join a public one
+              {t('sess.or_public')}
             </div>
             <div style={{ display: 'flex', gap: 16 }}>
-              <Stat label="Open now" value={sessions.filter(s => !s.started).length} hint="ready to join" />
-              <Stat label="Running" value={sessions.filter(s => s.started).length} hint="in progress" />
+              <Stat label={t('sess.open_now')}  value={sessions.filter(s => !s.started).length} hint={t('sess.ready')} />
+              <Stat label={t('sess.running')}   value={sessions.filter(s => s.started).length}  hint={t('sess.in_progress')} />
             </div>
           </div>
         </div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'space-between', marginBottom: 20 }}>
-        <SearchInput value={search} onChange={setSearch} placeholder="Search by quiz, host, or code..." />
+        <SearchInput value={search} onChange={setSearch} placeholder={t('sess.search')} />
         <div style={{
           display: 'flex', background: 'var(--surface)', borderRadius: 'var(--r-md)',
           border: '1px solid var(--border)', padding: 3,
         }}>
-          {[{ id: 'all', label: 'All' }, { id: 'open', label: 'Open' }, { id: 'running', label: 'Running' }].map(f => (
+          {[
+            { id: 'all',     label: t('sess.all')     },
+            { id: 'open',    label: t('sess.open')    },
+            { id: 'running', label: t('sess.running') },
+          ].map(f => (
             <button
               key={f.id}
               onClick={() => setFilter(f.id)}
@@ -121,11 +126,16 @@ function Sessions({ onNav }) {
           fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em',
           color: 'var(--text-muted)', fontWeight: 600,
         }}>
-          <div>Code</div><div>Quiz</div><div>Host</div><div>Players</div><div>Status</div><div />
+          <div>{t('sess.col_code')}</div>
+          <div>{t('sess.col_quiz')}</div>
+          <div>{t('sess.col_host')}</div>
+          <div>{t('sess.col_players')}</div>
+          <div>{t('sess.col_status')}</div>
+          <div />
         </div>
         {filtered.length === 0 && (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
-            No sessions match your filters.
+            {t('sess.no_match')}
           </div>
         )}
         {filtered.map((s, i) => (
@@ -144,7 +154,7 @@ function Sessions({ onNav }) {
             <div>
               <div style={{ fontSize: 14, fontWeight: 600 }}>{s.quiz}</div>
               <div style={{ fontSize: 12, color: 'var(--text-faint)', display: 'flex', gap: 10, marginTop: 2 }}>
-                <span><Icon name="clock" size={11} style={{ verticalAlign: -1, marginRight: 3 }} /><span className="mono">{s.timePerQuestion}s</span> / question</span>
+                <span><Icon name="clock" size={11} style={{ verticalAlign: -1, marginRight: 3 }} /><span className="mono">{s.timePerQuestion}s</span> {t('sess.per_q')}</span>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -167,13 +177,13 @@ function Sessions({ onNav }) {
             <div>
               {s.started ? (
                 <span className="pill pill--dot" style={{ color: 'oklch(60% 0.18 25)', borderColor: 'oklch(60% 0.18 25 / 0.3)', background: 'oklch(60% 0.18 25 / 0.08)' }}>
-                  Running
+                  {t('sess.running')}
                 </span>
               ) : s.players >= s.maxPlayers ? (
-                <span className="pill">Full</span>
+                <span className="pill">{t('sess.full')}</span>
               ) : (
                 <span className="pill pill--dot" style={{ color: 'oklch(55% 0.16 145)', borderColor: 'oklch(55% 0.16 145 / 0.3)', background: 'oklch(55% 0.16 145 / 0.08)' }}>
-                  Open
+                  {t('sess.open')}
                 </span>
               )}
             </div>
@@ -188,7 +198,7 @@ function Sessions({ onNav }) {
               disabled={s.started || s.players >= s.maxPlayers}
               style={{ opacity: (s.started || s.players >= s.maxPlayers) ? 0.4 : 1 }}
             >
-              Join
+              {t('sess.join')}
             </button>
           </div>
         ))}
