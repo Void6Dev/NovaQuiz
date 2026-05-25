@@ -3,7 +3,7 @@
 const _isMac = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform);
 
 function CommandPalette() {
-  useLang(); // re-render on language change
+  window.useLang(); // re-render on language change
 
   const [open, setOpen]         = useState(false);
   const [query, setQuery]       = useState('');

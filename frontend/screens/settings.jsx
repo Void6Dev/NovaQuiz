@@ -5,7 +5,7 @@ function loadPrefs() { try { return JSON.parse(localStorage.getItem(PREFS_KEY) |
 function savePrefs(p) { try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch {} }
 
 function Settings({ theme, onTheme, onLogout }) {
-  useLang(); // re-render on language change
+  window.useLang(); // re-render on language change
 
   const [section, setSection] = useState('profile');
   const sections = [
@@ -567,7 +567,7 @@ function ThemePreview({ dark }) {
 // ─── Language ─────────────────────────────────────────────────────────────────
 
 function LanguageSettings() {
-  const currentLang = useLang(); // subscribe + get current lang
+  const currentLang = window.useLang(); // subscribe + get current lang
 
   return (
     <SettingsSection title={t('language.title')} subtitle={t('language.subtitle')}>

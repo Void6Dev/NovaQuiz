@@ -3,7 +3,7 @@
 // Navigates between pages via window.navigate(screen).
 
 function Sidebar({ current, onLogout }) {
-  useLang(); // re-render when language changes
+  window.useLang(); // re-render when language changes
 
   const u = window.CURRENT_USER;
   const nav = window.navigate;
