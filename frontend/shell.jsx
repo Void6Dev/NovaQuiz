@@ -76,6 +76,7 @@ function PageShell({ layout = 'app', current, children, theme: themeOverride, on
         </main>
       </div>
       {window.ToastContainer && React.createElement(window.ToastContainer)}
+      {window.CommandPalette && React.createElement(window.CommandPalette)}
 
       <TweaksPanel>
         <TweakSection label="Theme" />

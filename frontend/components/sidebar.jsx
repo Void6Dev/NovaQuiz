@@ -27,11 +27,34 @@ function Sidebar({ current, onLogout }) {
 
       <button
         className="btn btn--accent"
-        style={{ marginBottom: 16, justifyContent: 'flex-start', padding: '10px 12px' }}
+        style={{ marginBottom: 8, justifyContent: 'flex-start', padding: '10px 12px' }}
         onClick={() => nav('editor', { newQuiz: 1 })}
       >
         <Icon name="plus" size={16} />
         New quiz
+      </button>
+
+      <button
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          width: '100%', padding: '8px 10px', marginBottom: 12,
+          borderRadius: 'var(--r-md)', border: '1px solid var(--border)',
+          background: 'var(--surface)', cursor: 'pointer',
+          color: 'var(--text-faint)', fontSize: 13,
+          transition: 'border-color 150ms, color 150ms',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-faint)'; }}
+        onClick={() => window.dispatchEvent(new CustomEvent('open-command-palette'))}
+      >
+        <Icon name="search" size={13} />
+        <span style={{ flex: 1, textAlign: 'left' }}>Search…</span>
+        <kbd style={{
+          padding: '1px 5px', borderRadius: 4,
+          fontSize: 10, fontFamily: 'JetBrains Mono, monospace', fontWeight: 600,
+          background: 'var(--bg-2)', border: '1px solid var(--border)',
+          color: 'var(--text-faint)', flexShrink: 0,
+        }}>{typeof navigator !== 'undefined' && /mac/i.test(navigator.platform) ? '⌘K' : 'Ctrl+K'}</kbd>
       </button>
 
       <div className="sidebar__section-label">Workspace</div>
