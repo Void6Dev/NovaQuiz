@@ -329,8 +329,24 @@
   window.CURRENT_LANG = initialLang;
   document.documentElement.lang = initialLang;
 
+  // ── useLang — React hook for language-aware re-renders ──────────────────
+  // Defined here (plain script) so it's always available before Babel files run.
+  // React hooks (useReducer / useEffect) are only *called* at render time,
+  // when React is already loaded — safe to reference from a pre-React script.
+  function useLang() {
+    var pair = React.useReducer(function(x) { return x + 1; }, 0);
+    var forceUpdate = pair[1];
+    React.useEffect(function() {
+      var handler = function() { forceUpdate(); };
+      window.addEventListener('language-changed', handler);
+      return function() { window.removeEventListener('language-changed', handler); };
+    }, []);
+    return window.CURRENT_LANG || 'en';
+  }
+
   window.t = t;
   window.setLang = setLang;
+  window.useLang = useLang;
   window.SUPPORTED_LANGS = [
     { code: 'en', nativeLabel: 'English', flag: 'EN' },
     { code: 'ru', nativeLabel: 'Русский', flag: 'RU' },
