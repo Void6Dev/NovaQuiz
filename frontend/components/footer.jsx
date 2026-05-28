@@ -14,8 +14,8 @@ function SiteFooter({ variant = 'full' }) {
       <div className="site-footer__top">
         <div>
           <div className="site-footer__brand">
-            <div className="sidebar__logo-mark">Q</div>
-            <span>Quiz</span>
+            <NQLogo size={24} />
+            <span>Nova<span style={{ color: 'var(--accent)' }}>Quiz</span></span>
           </div>
           <p className="site-footer__tag">A premium-grade quiz studio. Crafted in OKLCH.</p>
         </div>
@@ -106,8 +106,8 @@ function SiteHeader({ activeLink, transparent }) {
   return (
     <header className="site-header" style={transparent ? { background: 'transparent', borderBottom: 0 } : null}>
       <a className="site-header__brand" href="index.html" onClick={(e) => { e.preventDefault(); nav('landing'); }}>
-        <div className="sidebar__logo-mark">Q</div>
-        <span>Quiz</span>
+        <NQLogo size={22} />
+        <span>Nova<span style={{ color: 'var(--accent)' }}>Quiz</span></span>
       </a>
       <nav className="site-header__links">
         {['Product', 'Templates', 'Pricing', 'Changelog'].map(l => (

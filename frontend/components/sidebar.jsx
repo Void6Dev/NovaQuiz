@@ -22,8 +22,8 @@ function Sidebar({ current, onLogout }) {
   return (
     <aside className="sidebar" data-screen-label="Sidebar">
       <div className="sidebar__logo">
-        <div className="sidebar__logo-mark">Q</div>
-        <span>Quiz</span>
+        <NQLogo size={28} />
+        <span>Nova<span style={{ color: 'var(--accent)' }}>Quiz</span></span>
         <span className="pill" style={{ marginLeft: 'auto', fontSize: 10, padding: '2px 7px' }}>v2.4</span>
       </div>
 
@@ -152,3 +152,67 @@ function Sidebar({ current, onLogout }) {
 }
 
 window.Sidebar = Sidebar;
+
+// === Mobile bottom navigation bar ===
+function MobileNav({ current }) {
+  window.useLang();
+  const nav = window.navigate;
+
+  const items = [
+    { id: 'dashboard', label: t('nav.browse'),    icon: 'compass' },
+    { id: 'editor',    label: t('nav.editor'),    icon: 'edit'    },
+    { id: 'sessions',  label: t('nav.sessions'),  icon: 'users'   },
+    { id: 'analytics', label: t('nav.analytics'), icon: 'chart'   },
+    { id: 'profile',   label: t('nav.you'),       icon: 'user'    },
+  ];
+
+  return (
+    <nav className="mobile-nav" aria-label="Mobile navigation">
+      {items.map(item => (
+        <button
+          key={item.id}
+          className={`mobile-nav__item ${current === item.id ? 'mobile-nav__item--active' : ''}`}
+          onClick={() => nav(item.id)}
+          aria-current={current === item.id ? 'page' : undefined}
+        >
+          <Icon name={item.icon} size={20} strokeWidth={current === item.id ? 2.2 : 1.8} />
+          <span>{item.label}</span>
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+// === Mobile sticky header (logo + quick action) ===
+function MobileHeader({ current }) {
+  window.useLang();
+  return (
+    <header className="mobile-header" aria-label="Mobile header">
+      <div className="mobile-header__logo">
+        <NQLogo size={26} />
+        <span>Nova<span style={{ color: 'var(--accent)' }}>Quiz</span></span>
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          className="btn btn--ghost btn--icon"
+          style={{ color: 'var(--text-muted)' }}
+          onClick={() => window.dispatchEvent(new CustomEvent('open-command-palette'))}
+          aria-label="Search"
+        >
+          <Icon name="search" size={18} />
+        </button>
+        <button
+          className="btn btn--accent btn--sm"
+          style={{ borderRadius: 'var(--r-md)', padding: '6px 12px' }}
+          onClick={() => window.navigate('editor', { newQuiz: 1 })}
+        >
+          <Icon name="plus" size={14} />
+          {t('nav.new_quiz')}
+        </button>
+      </div>
+    </header>
+  );
+}
+
+window.MobileNav    = MobileNav;
+window.MobileHeader = MobileHeader;

@@ -259,10 +259,10 @@ function AchievementCard({ a }) {
         {style.icon}
       </div>
       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, color: a.unlocked ? style.fg : 'var(--text-muted)' }}>
-        {a.name}
+        {t('prof.ach_' + a.id) || a.name}
       </div>
       <div style={{ fontSize: 11, color: a.unlocked ? style.fg : 'var(--text-faint)', lineHeight: 1.4, opacity: 0.8 }}>
-        {a.desc}
+        {t('prof.ach_d_' + a.id) || a.desc}
       </div>
     </div>
   );
@@ -397,7 +397,7 @@ function ProfilePage({ onNav }) {
       </div>
 
       {/* ── Stat tiles ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }}>
+      <div className="profile-stats-grid">
         <StatTile
           icon="star" label={t('prof.total_xp')} accent
           value={loading ? '—' : (stats?.xp ?? 0).toLocaleString()}
@@ -418,7 +418,7 @@ function ProfilePage({ onNav }) {
       </div>
 
       {/* ── Activity + Topics ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 16, marginBottom: 16 }}>
+      <div className="profile-activity-grid">
         <ActivityHeatmap activity={stats?.activity || []} loading={loading} />
         <StrongestTopics topics={stats?.topics || []} loading={loading} />
       </div>

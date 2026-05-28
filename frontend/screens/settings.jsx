@@ -21,7 +21,7 @@ function Settings({ theme, onTheme, onLogout }) {
     <div className="page fade-in" data-screen-label="07 Settings" style={{ maxWidth: 1100 }}>
       <PageHeader title={t('settings.title')} subtitle={t('settings.subtitle')} />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 32 }}>
+      <div className="settings-layout">
         <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {sections.map(s => (
             <a
@@ -163,8 +163,8 @@ function ProfileSettings({ onLogout }) {
 
   const changePassword = async (e) => {
     e.preventDefault();
-    if (newPass !== confirmPass) { setPassMsg('Passwords do not match.'); setPassErr(true); return; }
-    if (newPass.length < 6)      { setPassMsg('Password must be at least 6 characters.'); setPassErr(true); return; }
+    if (newPass !== confirmPass) { setPassMsg(t('profile.pass_mismatch')); setPassErr(true); return; }
+    if (newPass.length < 6)      { setPassMsg(t('profile.pass_short')); setPassErr(true); return; }
     setPassSaving(true); setPassMsg(''); setPassErr(false);
     try {
       await window.API.post('/auth/change-password/', { old_password: oldPass, new_password: newPass });
@@ -181,15 +181,15 @@ function ProfileSettings({ onLogout }) {
   const uploadAvatar = (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    if (!f.type.startsWith('image/')) { showToast('Please select an image file.', 'error'); return; }
-    if (f.size > 5 * 1024 * 1024)    { showToast('Image must be under 5 MB.', 'error'); return; }
+    if (!f.type.startsWith('image/')) { showToast(t('profile.img_type'), 'error'); return; }
+    if (f.size > 5 * 1024 * 1024)    { showToast(t('profile.img_size'), 'error'); return; }
     const fd = new FormData();
     fd.append('avatar', f);
     window.API.upload('/auth/avatar/', fd)
       .then(data => {
         setAvatar(data.avatar);
         window.API.saveUser({ ...window.CURRENT_USER, avatar: data.avatar });
-        showToast('Avatar updated', 'success');
+        showToast(t('profile.avatar_updated'), 'success');
       })
       .catch(err => showToast(err.message, 'error'));
     e.target.value = '';
@@ -407,14 +407,13 @@ function ProfileSettings({ onLogout }) {
               <Icon name="trash" size={20} />
             </div>
             <h3 style={{ fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em', marginBottom: 8 }}>
-              Delete your account?
+              {t('profile.del_title')}
             </h3>
             <p style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.55, marginBottom: 16 }}>
-              This will permanently delete your account, all your quizzes, and every session record.
-              There is <strong>no undo</strong>. To confirm, type your username below.
+              {t('profile.del_body')}
             </p>
             <div style={{ background: 'var(--bg-2)', borderRadius: 8, padding: '8px 12px', marginBottom: 16, fontSize: 13 }}>
-              <span className="mono" style={{ color: 'var(--text-muted)' }}>Username: </span>
+              <span className="mono" style={{ color: 'var(--text-muted)' }}>{t('profile.del_username')}</span>
               <span className="mono" style={{ fontWeight: 600 }}>{u.username}</span>
             </div>
             <input
@@ -426,7 +425,7 @@ function ProfileSettings({ onLogout }) {
             />
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button className="btn btn--secondary" onClick={() => { setShowDelete(false); setDeleteInput(''); }}>
-                Cancel
+                {t('profile.del_cancel')}
               </button>
               <button
                 className="btn"
@@ -434,7 +433,7 @@ function ProfileSettings({ onLogout }) {
                 disabled={deleteInput !== u.username}
                 onClick={deleteAccount}
               >
-                <Icon name="trash" size={14} /> Delete my account
+                <Icon name="trash" size={14} /> {t('profile.del_confirm')}
               </button>
             </div>
           </div>
@@ -611,6 +610,7 @@ function LanguageSettings() {
 // ─── Notifications ────────────────────────────────────────────────────────────
 
 function NotificationSettings() {
+  window.useLang();
   const [prefs, setPrefs] = useState(loadPrefs);
   const setPref = (key, val) => {
     const next = { ...prefs, [key]: val };
@@ -619,29 +619,29 @@ function NotificationSettings() {
   };
   return (
     <>
-      <SettingsSection title="Email notifications" subtitle="Control what gets sent to your inbox. Changes are saved automatically.">
+      <SettingsSection title={t('notif.email_title')} subtitle={t('notif.email_sub')}>
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <SettingsRow label="Player joins your session" hint="Real-time alert when someone enters your lobby">
+          <SettingsRow label={t('notif.join')} hint={t('notif.join_hint')}>
             <Toggle on={!!prefs.notifyJoin} onChange={v => setPref('notifyJoin', v)} />
           </SettingsRow>
-          <SettingsRow label="Weekly analytics digest" hint="Summary of your quiz performance every Monday">
+          <SettingsRow label={t('notif.digest')} hint={t('notif.digest_hint')}>
             <Toggle on={prefs.notifyDigest !== false} onChange={v => setPref('notifyDigest', v)} />
           </SettingsRow>
-          <SettingsRow label="Quiz shared with you" hint="Someone added you as a collaborator">
+          <SettingsRow label={t('notif.share')} hint={t('notif.share_hint')}>
             <Toggle on={!!prefs.notifyShare} onChange={v => setPref('notifyShare', v)} />
           </SettingsRow>
-          <SettingsRow label="Product updates & tips" hint="New features and best practices from the team">
+          <SettingsRow label={t('notif.marketing')} hint={t('notif.marketing_hint')}>
             <Toggle on={!!prefs.notifyMarketing} onChange={v => setPref('notifyMarketing', v)} />
           </SettingsRow>
         </div>
       </SettingsSection>
 
-      <SettingsSection title="In-app notifications">
+      <SettingsSection title={t('notif.inapp_title')}>
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <SettingsRow label="Session activity" hint="Players joining, leaving, or answering">
+          <SettingsRow label={t('notif.session')} hint={t('notif.session_hint')}>
             <Toggle on={prefs.inAppSession !== false} onChange={v => setPref('inAppSession', v)} />
           </SettingsRow>
-          <SettingsRow label="Score milestones" hint="When a player reaches a new high score">
+          <SettingsRow label={t('notif.milestone')} hint={t('notif.milestone_hint')}>
             <Toggle on={!!prefs.inAppMilestone} onChange={v => setPref('inAppMilestone', v)} />
           </SettingsRow>
         </div>
@@ -653,6 +653,7 @@ function NotificationSettings() {
 // ─── Workspace ────────────────────────────────────────────────────────────────
 
 function WorkspaceSettings() {
+  window.useLang();
   const u = window.CURRENT_USER;
   const [prefs, setPrefs] = useState(loadPrefs);
   const [inviteEmail, setInviteEmail] = useState('');
@@ -685,7 +686,7 @@ function WorkspaceSettings() {
     setInviteMsg('');
     try {
       await window.API.post('/workspace/invite/', { email: inviteEmail });
-      setInviteMsg('✓ Invite sent');
+      setInviteMsg(t('ws.sent_ok'));
       setInviteEmail('');
       setSent(prev => [...prev, { to_email: inviteEmail, status: 'pending', created_at: new Date().toISOString() }]);
       setTimeout(() => setInviteMsg(''), 3000);
@@ -696,7 +697,7 @@ function WorkspaceSettings() {
   };
 
   const cancelInvite = (invId) => {
-    if (!confirm('Cancel this invitation?')) return;
+    if (!confirm(t('ws.cancel_confirm'))) return;
     window.API.post(`/workspace/invitations/${invId}/cancel/`, {})
       .then(() => setSent(prev => prev.filter(i => i.id !== invId)))
       .catch(e => showToast(e.message, 'error'));
@@ -716,10 +717,10 @@ function WorkspaceSettings() {
 
   return (
     <>
-      <SettingsSection title="Your workspace" subtitle="Nova Quiz workspaces let teams share quizzes and manage sessions together.">
+      <SettingsSection title={t('ws.title')} subtitle={t('ws.subtitle')}>
         <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 16 }}>
           <SettingsRow label={u.name || u.username} hint={`@${u.username} · ${u.email || 'no email set'}`}>
-            <span className="pill" style={{ background: 'var(--accent)', color: 'var(--accent-fg)', borderColor: 'transparent', fontWeight: 700 }}>Owner</span>
+            <span className="pill" style={{ background: 'var(--accent)', color: 'var(--accent-fg)', borderColor: 'transparent', fontWeight: 700 }}>{t('ws.owner')}</span>
           </SettingsRow>
         </div>
 
@@ -728,9 +729,9 @@ function WorkspaceSettings() {
             <Icon name="users" size={18} style={{ color: 'var(--text-faint)' }} />
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 2 }}>Invite team members</div>
+            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 2 }}>{t('ws.invite_title')}</div>
             <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-              Add colleagues to collaborate on quizzes, share quizzes, and view shared analytics.
+              {t('ws.invite_hint')}
             </div>
           </div>
           <button
@@ -740,7 +741,7 @@ function WorkspaceSettings() {
               if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
             }}
           >
-            <Icon name="plus" size={14} /> Invite
+            <Icon name="plus" size={14} /> {t('ws.invite_btn')}
           </button>
         </div>
 
@@ -766,7 +767,7 @@ function WorkspaceSettings() {
               type="submit"
               disabled={inviting || !inviteEmail.trim()}
             >
-              {inviting ? 'Sending…' : 'Send invite'}
+              {inviting ? t('ws.sending') : t('ws.send')}
             </button>
           </div>
           {inviteMsg && (
@@ -779,7 +780,7 @@ function WorkspaceSettings() {
         {!loadingInvites && sent.length > 0 && (
           <div style={{ marginTop: 16 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
-              Sent invitations ({sent.length})
+              {t('ws.sent_title')} ({sent.length})
             </div>
             <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
               {sent.map((inv, i) => (
@@ -790,7 +791,7 @@ function WorkspaceSettings() {
                   <div>
                     <div style={{ fontSize: 13 }}>{inv.to_email}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 2 }}>
-                      Sent {new Date(inv.created_at).toLocaleDateString()}
+                      {t('ws.sent_date')} {new Date(inv.created_at).toLocaleDateString()}
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -821,7 +822,7 @@ function WorkspaceSettings() {
         {!loadingInvites && received.length > 0 && (
           <div style={{ marginTop: 16 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
-              Incoming invitations ({received.filter(i => i.status === 'pending').length})
+              {t('ws.incoming_title')} ({received.filter(i => i.status === 'pending').length})
             </div>
             <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
               {received.map((inv, i) => (
@@ -830,7 +831,7 @@ function WorkspaceSettings() {
                   padding: '12px 16px', borderBottom: i < received.length - 1 ? '1px solid var(--border)' : 'none',
                 }}>
                   <div>
-                    <div style={{ fontSize: 13 }}>From <strong>{inv.from_name || inv.from_user}</strong></div>
+                    <div style={{ fontSize: 13 }}>{t('ws.from')} <strong>{inv.from_name || inv.from_user}</strong></div>
                     <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 2 }}>
                       @{inv.from_user} · {new Date(inv.created_at).toLocaleDateString()}
                     </div>
@@ -843,14 +844,14 @@ function WorkspaceSettings() {
                           onClick={() => acceptInvite(inv.id)}
                           style={{ padding: '5px 12px', fontSize: 12 }}
                         >
-                          Accept
+                          {t('ws.accept')}
                         </button>
                         <button
                           className="btn btn--ghost"
                           onClick={() => declineInvite(inv.id)}
                           style={{ padding: '5px 12px', fontSize: 12 }}
                         >
-                          Decline
+                          {t('ws.decline')}
                         </button>
                       </>
                     ) : (
@@ -870,44 +871,44 @@ function WorkspaceSettings() {
         )}
       </SettingsSection>
 
-      <SettingsSection title="Workspace defaults" subtitle="Applied when creating new quizzes and sessions.">
+      <SettingsSection title={t('ws.defaults_title')} subtitle={t('ws.defaults_sub')}>
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <SettingsRow label="Default quiz visibility" hint="Who can see newly created quizzes">
+          <SettingsRow label={t('ws.vis_label')} hint={t('ws.vis_hint')}>
             <select
               className="input"
               value={prefs.defaultVisibility || 'public'}
               onChange={e => setPref('defaultVisibility', e.target.value)}
               style={{ width: 'auto', padding: '5px 10px', fontSize: 13 }}
             >
-              <option value="private">Private (only you)</option>
-              <option value="team">Team (shared members)</option>
-              <option value="public">Public (anyone)</option>
+              <option value="private">{t('ws.vis_private')}</option>
+              <option value="team">{t('ws.vis_team')}</option>
+              <option value="public">{t('ws.vis_public')}</option>
             </select>
           </SettingsRow>
-          <SettingsRow label="Default time per question" hint="Applied when creating a new live session">
+          <SettingsRow label={t('ws.time_label')} hint={t('ws.time_hint')}>
             <select
               className="input"
               value={prefs.defaultTimePerQuestion || '30'}
               onChange={e => setPref('defaultTimePerQuestion', e.target.value)}
               style={{ width: 'auto', padding: '5px 10px', fontSize: 13 }}
             >
-              <option value="20">20 seconds</option>
-              <option value="30">30 seconds</option>
-              <option value="45">45 seconds</option>
-              <option value="60">60 seconds</option>
+              <option value="20">{t('ws.s20')}</option>
+              <option value="30">{t('ws.s30')}</option>
+              <option value="45">{t('ws.s45')}</option>
+              <option value="60">{t('ws.s60')}</option>
             </select>
           </SettingsRow>
-          <SettingsRow label="Default max players" hint="How many players can join your live sessions">
+          <SettingsRow label={t('ws.players_label')} hint={t('ws.players_hint')}>
             <select
               className="input"
               value={prefs.defaultMaxPlayers || '50'}
               onChange={e => setPref('defaultMaxPlayers', e.target.value)}
               style={{ width: 'auto', padding: '5px 10px', fontSize: 13 }}
             >
-              <option value="20">20 players</option>
-              <option value="30">30 players</option>
-              <option value="50">50 players</option>
-              <option value="100">100 players</option>
+              <option value="20">{t('ws.p20')}</option>
+              <option value="30">{t('ws.p30')}</option>
+              <option value="50">{t('ws.p50')}</option>
+              <option value="100">{t('ws.p100')}</option>
             </select>
           </SettingsRow>
         </div>
@@ -919,57 +920,58 @@ function WorkspaceSettings() {
 // ─── Billing ──────────────────────────────────────────────────────────────────
 
 function BillingSettings() {
+  window.useLang();
   const u = window.CURRENT_USER;
   const credits = u.credits || 0;
 
   const features = [
-    { icon: 'plus', label: 'Unlimited quizzes', enabled: true },
-    { icon: 'users', label: 'Up to 50 players per session', enabled: true },
-    { icon: 'bar-chart-2', label: 'Full analytics & reports', enabled: true },
-    { icon: 'check-square', label: 'All question types', enabled: true },
-    { icon: 'share-2', label: 'Share & duplicate quizzes', enabled: true },
-    { icon: 'play-circle', label: 'Live sessions with scoring', enabled: true },
-    { icon: 'lock', label: 'Team collaboration', enabled: false },
-    { icon: 'trending-up', label: 'Advanced insights & predictions', enabled: false },
+    { icon: 'plus',         label: t('billing.feat_quizzes'),  enabled: true },
+    { icon: 'users',        label: t('billing.feat_players'),  enabled: true },
+    { icon: 'bar-chart-2',  label: t('billing.feat_analytics'), enabled: true },
+    { icon: 'check-square', label: t('billing.feat_types'),    enabled: true },
+    { icon: 'share-2',      label: t('billing.feat_share'),    enabled: true },
+    { icon: 'play-circle',  label: t('billing.feat_live'),     enabled: true },
+    { icon: 'lock',         label: t('billing.feat_team'),     enabled: false },
+    { icon: 'trending-up',  label: t('billing.feat_insights'), enabled: false },
   ];
 
   return (
     <>
-      <SettingsSection title="Credits balance">
+      <SettingsSection title={t('billing.title')}>
         <div className="card" style={{ padding: 24, position: 'relative', overflow: 'hidden', marginBottom: 16 }}>
           <div style={{ position: 'absolute', top: -30, right: -30, width: 140, height: 140, borderRadius: 999, background: 'oklch(85% 0.18 130 / 0.12)', filter: 'blur(30px)' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, position: 'relative' }}>
             <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--accent)', color: 'var(--accent-fg)', display: 'grid', placeItems: 'center' }}>
               <Icon name="star" size={16} />
             </div>
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Your credits</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('billing.your_credits')}</span>
           </div>
           <div className="mono" style={{ fontSize: 48, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1, position: 'relative' }}>
             {credits.toLocaleString()}
           </div>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8, position: 'relative' }}>
-            Earned by answering correctly in live sessions.
+            {t('billing.earned_hint')}
           </div>
         </div>
 
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <SettingsRow label="+5 credits" hint="For each correct answer in a live session">
-            <span className="pill" style={{ background: 'oklch(93% 0.08 145)', color: 'oklch(40% 0.12 145)', border: 0 }}>Per correct</span>
+          <SettingsRow label={t('billing.plus5_label')} hint={t('billing.plus5_hint')}>
+            <span className="pill" style={{ background: 'oklch(93% 0.08 145)', color: 'oklch(40% 0.12 145)', border: 0 }}>{t('billing.per_correct')}</span>
           </SettingsRow>
-          <SettingsRow label="+1 credit" hint="If you're the first player to answer correctly">
-            <span className="pill" style={{ background: 'oklch(90% 0.10 80)', color: 'oklch(40% 0.12 80)', border: 0 }}>Speed bonus</span>
+          <SettingsRow label={t('billing.plus1_label')} hint={t('billing.plus1_hint')}>
+            <span className="pill" style={{ background: 'oklch(90% 0.10 80)', color: 'oklch(40% 0.12 80)', border: 0 }}>{t('billing.speed')}</span>
           </SettingsRow>
         </div>
       </SettingsSection>
 
-      <SettingsSection title="Plan & features">
+      <SettingsSection title={t('billing.plan_title')}>
         <div className="card" style={{ padding: 24, marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 24 }}>
             <div>
-              <span className="pill" style={{ background: 'var(--text)', color: 'var(--bg)', borderColor: 'transparent', fontWeight: 700 }}>Personal</span>
-              <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 12, marginBottom: 4 }}>Free</div>
+              <span className="pill" style={{ background: 'var(--text)', color: 'var(--bg)', borderColor: 'transparent', fontWeight: 700 }}>{t('billing.plan_name')}</span>
+              <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 12, marginBottom: 4 }}>{t('billing.plan_price')}</div>
               <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                Everything you need to create and host quizzes.
+                {t('billing.plan_desc')}
               </div>
             </div>
           </div>
@@ -993,7 +995,7 @@ function BillingSettings() {
                 />
                 <span style={{ fontSize: 13, lineHeight: 1.4 }}>
                   {f.label}
-                  {!f.enabled && <span style={{ color: 'var(--text-faint)' }}> (Pro)</span>}
+                  {!f.enabled && <span style={{ color: 'var(--text-faint)' }}> {t('billing.feat_pro')}</span>}
                 </span>
               </div>
             ))}
@@ -1004,9 +1006,9 @@ function BillingSettings() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <Icon name="star" size={18} style={{ color: 'var(--text-muted)' }} />
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>Pro plan coming soon</div>
+              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2 }}>{t('billing.coming_soon')}</div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                Advanced features for teams and serious quiz creators
+                {t('billing.coming_hint')}
               </div>
             </div>
           </div>

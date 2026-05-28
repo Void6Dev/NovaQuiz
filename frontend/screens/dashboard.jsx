@@ -119,8 +119,8 @@ function Dashboard({ onNav }) {
       </div>
 
       {/* Toolbar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flex: 1 }}>
+      <div className="toolbar-row">
+        <div className="toolbar-row__left">
           <SearchInput value={search} onChange={setSearch} placeholder={t('dash.search')} />
           {tab === 'explore' && (
             <SearchInput value={authorSearch} onChange={setAuthor} placeholder={t('dash.search_author')} />
@@ -150,7 +150,7 @@ function Dashboard({ onNav }) {
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="toolbar-row__right">
           <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{filtered.length} of {currentQuizzes.length}</span>
           <div style={{
             display: 'flex', background: 'var(--surface)', borderRadius: 'var(--r-md)',
@@ -185,7 +185,7 @@ function Dashboard({ onNav }) {
           hint={tab === 'mine' ? t('dash.empty_mine_hint') : t('dash.empty_hint')}
         />
       ) : view === 'grid' ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 20 }}>
+        <div className="quiz-grid">
           {filtered.map((q, i) => {
             const isOwn = (q.creator?.username || '') === u.username;
             return (
@@ -619,14 +619,14 @@ function HoloCardStyles() {
 function QuizListView({ quizzes, myUsername, onOpen, onPlay, onRunLive, onDelete, onDuplicate }) {
   return (
     <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-      <div style={{
-        display: 'grid', gridTemplateColumns: '2fr 0.7fr 0.6fr 0.6fr 0.8fr 0.8fr 130px',
-        gap: 16, padding: '12px 20px',
-        background: 'var(--bg-2)', borderBottom: '1px solid var(--border)',
-        fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em',
-        color: 'var(--text-muted)', fontWeight: 600,
-      }}>
-        <div>{t('dash.col_title')}</div><div>{t('dash.col_author')}</div><div>{t('dash.col_status')}</div><div>{t('dash.col_qs')}</div><div>{t('dash.col_plays')}</div><div>{t('dash.col_updated')}</div><div />
+      <div className="quiz-list-header">
+        <div>{t('dash.col_title')}</div>
+        <div className="qlc-meta">{t('dash.col_author')}</div>
+        <div className="qlc-meta">{t('dash.col_status')}</div>
+        <div className="qlc-meta">{t('dash.col_qs')}</div>
+        <div className="qlc-meta">{t('dash.col_plays')}</div>
+        <div className="qlc-meta">{t('dash.col_updated')}</div>
+        <div />
       </div>
       {quizzes.map(q => {
         const topic  = window.TOPIC_BY_CODE[q.topic] || { label: q.topic, hue: 200 };
@@ -636,15 +636,8 @@ function QuizListView({ quizzes, myUsername, onOpen, onPlay, onRunLive, onDelete
             key={q.id}
             onClick={() => isOwn ? onOpen(q.id) : onPlay(q.id)}
             className="quiz-row"
-            style={{
-              display: 'grid', gridTemplateColumns: '2fr 0.7fr 0.6fr 0.6fr 0.8fr 0.8fr 130px',
-              gap: 16, padding: '14px 20px',
-              borderBottom: '1px solid var(--border)',
-              alignItems: 'center', cursor: 'pointer',
-              transition: 'background 100ms',
-            }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div className="qlc-title" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ width: 40, height: 40, borderRadius: 8, overflow: 'hidden', flexShrink: 0, background: 'var(--bg-2)' }}>
                 {(q.cover || q.image)
                   ? <img src={q.cover || q.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
@@ -655,17 +648,17 @@ function QuizListView({ quizzes, myUsername, onOpen, onPlay, onRunLive, onDelete
                 <div style={{ fontSize: 12, color: 'var(--text-faint)' }}>{topic.label}</div>
               </div>
             </div>
-            <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+            <div className="qlc-meta mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               @{q.creator?.username || '—'}
             </div>
-            <div>
+            <div className="qlc-meta">
               <span className="pill pill--dot" style={q.status === 'live' ? { color: 'oklch(50% 0.15 145)' } : {}}>
                 {q.status}
               </span>
             </div>
-            <div className="mono" style={{ fontSize: 13 }}>{q.questions}</div>
-            <div className="mono" style={{ fontSize: 13 }}>{q.plays.toLocaleString()}</div>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{q.lastEdited}</div>
+            <div className="qlc-meta mono" style={{ fontSize: 13 }}>{q.questions}</div>
+            <div className="qlc-meta mono" style={{ fontSize: 13 }}>{q.plays.toLocaleString()}</div>
+            <div className="qlc-meta" style={{ fontSize: 13, color: 'var(--text-muted)' }}>{q.lastEdited}</div>
             <div className="quiz-row__actions" onClick={e => e.stopPropagation()}>
               <Tooltip label={t('dash.practice')}><button className="btn btn--ghost btn--icon" onClick={() => onPlay(q.id)}><Icon name="play" size={14} /></button></Tooltip>
               {isOwn && <>
@@ -680,12 +673,43 @@ function QuizListView({ quizzes, myUsername, onOpen, onPlay, onRunLive, onDelete
       })}
 
       <style>{`
+        /* Desktop: full 7-column grid */
+        .quiz-list-header,
+        .quiz-row {
+          display: grid;
+          grid-template-columns: 2fr 0.7fr 0.6fr 0.6fr 0.8fr 0.8fr 130px;
+          gap: 16px; padding: 12px 20px; align-items: center;
+        }
+        .quiz-list-header {
+          background: var(--bg-2); border-bottom: 1px solid var(--border);
+          font-size: 11px; text-transform: uppercase;
+          letter-spacing: 0.06em; color: var(--text-muted); font-weight: 600;
+        }
+        .quiz-row {
+          padding: 14px 20px; border-bottom: 1px solid var(--border);
+          cursor: pointer; transition: background 100ms;
+        }
         .quiz-row:hover { background: var(--bg-2); }
         .quiz-row__actions {
           display: flex; gap: 2px; justify-content: flex-end;
           opacity: 0.35; transition: opacity 150ms;
         }
         .quiz-row:hover .quiz-row__actions { opacity: 1; }
+
+        /* Mobile: 2-col card — title + actions */
+        @media (max-width: 768px) {
+          .quiz-list-header { display: none; }
+          .quiz-row {
+            display: flex; flex-wrap: wrap;
+            gap: 6px; padding: 12px 14px; align-items: center;
+          }
+          .qlc-title { flex: 1; min-width: 0; }
+          .qlc-meta { display: none; }
+          .quiz-row__actions {
+            opacity: 1; flex-shrink: 0;
+            gap: 0;
+          }
+        }
       `}</style>
     </div>
   );

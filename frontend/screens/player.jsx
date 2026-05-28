@@ -77,6 +77,7 @@ function _launchConfetti() {
 }
 
 function Player({ onNav }) {
+  window.useLang();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [questions, setQuestions] = useState(null);
@@ -89,7 +90,7 @@ function Player({ onNav }) {
 
   useEffect(() => {
     if (!quizId) {
-      setError('No quiz selected. Go back and pick a quiz to practice.');
+      setError(t('play.no_quiz'));
       setLoading(false);
       return;
     }
@@ -99,7 +100,7 @@ function Player({ onNav }) {
         setQuizDesc(data.description || '');
         const qs = (data.questions || []).map(window.API.fromBackendQuestion);
         if (!qs.length) {
-          setError('This quiz has no questions yet. Add some in the editor first.');
+          setError(t('play.no_qs'));
           setLoading(false);
           return;
         }
@@ -114,7 +115,7 @@ function Player({ onNav }) {
 
   if (loading) return (
     <div style={{ height: '100vh', display: 'grid', placeItems: 'center', color: 'var(--text-muted)' }}>
-      <span className="mono" style={{ fontSize: 13 }}>Loading quiz…</span>
+      <span className="mono" style={{ fontSize: 13 }}>{t('play.loading')}</span>
     </div>
   );
 
@@ -129,13 +130,13 @@ function Player({ onNav }) {
           <Icon name="x" size={24} />
         </div>
         <h2 style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.02em', marginBottom: 8 }}>
-          Couldn't load quiz
+          {t('play.cant_load')}
         </h2>
         <p style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 24 }}>
           {error}
         </p>
         <button className="btn btn--primary" onClick={() => onNav('dashboard')}>
-          Back to dashboard
+          {t('play.back_dash')}
         </button>
       </div>
     </div>
@@ -158,7 +159,7 @@ function Player({ onNav }) {
             <p style={{ fontSize: 15, color: 'var(--text-muted)', lineHeight: 1.55, marginBottom: 16 }}>{quizDesc}</p>
           )}
           <p style={{ fontSize: 14, color: 'var(--text-faint)', marginBottom: 32 }}>
-            {questions.length} question{questions.length !== 1 ? 's' : ''}
+            {questions.length} {questions.length !== 1 ? t('play.qs_p') : t('play.qs')}
           </p>
 
           <div style={{
@@ -170,8 +171,8 @@ function Player({ onNav }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <Icon name="shuffle" size={16} style={{ color: 'var(--text-muted)' }} />
               <div style={{ textAlign: 'left' }}>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>Shuffle questions</div>
-                <div style={{ fontSize: 12, color: 'var(--text-faint)' }}>Randomize the order each time</div>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>{t('play.shuffle')}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-faint)' }}>{t('play.shuffle_hint')}</div>
               </div>
             </div>
             <Toggle on={shuffle} onChange={setShuffle} />
@@ -179,10 +180,10 @@ function Player({ onNav }) {
 
           <button className="btn btn--primary btn--lg" style={{ width: '100%' }}
             onClick={() => { setQuestions(finalQs); setStarted(true); setGameKey(k => k + 1); }}>
-            Start <Icon name="arrowRight" size={16} />
+            {t('play.start')} <Icon name="arrowRight" size={16} />
           </button>
           <button className="btn btn--ghost" style={{ marginTop: 10, width: '100%' }} onClick={() => onNav('dashboard')}>
-            Back
+            {t('play.back')}
           </button>
         </div>
       </div>
@@ -376,7 +377,7 @@ function PlayerGame({ questions, quizTitle, quizId, onNav, onPlayAgain }) {
         <div key={idx} className="player__qcard slide-up">
           <div className="player__meta">
             <span className="mono" style={{ fontSize: 11, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-              Question {idx + 1}
+              {t('play.q_label')} {idx + 1}
             </span>
             <Timer remaining={timeLeft} total={current.timeLimit} active={phase === 'question'} />
           </div>
@@ -435,7 +436,7 @@ function PlayerGame({ questions, quizTitle, quizId, onNav, onPlayAgain }) {
               disabled={selectedMulti.length === 0}
               onClick={() => commitAnswer(selectedMulti)}
             >
-              Submit answer <Icon name="arrowRight" size={14} />
+              {t('play.submit')} <Icon name="arrowRight" size={14} />
             </button>
           )}
           {current.type === 'open' && phase === 'question' && (
@@ -445,7 +446,7 @@ function PlayerGame({ questions, quizTitle, quizId, onNav, onPlayAgain }) {
               disabled={!openAnswer.trim()}
               onClick={() => commitAnswer(openAnswer)}
             >
-              Submit answer <Icon name="arrowRight" size={14} />
+              {t('play.submit')} <Icon name="arrowRight" size={14} />
             </button>
           )}
 
@@ -464,16 +465,16 @@ function PlayerGame({ questions, quizTitle, quizId, onNav, onPlayAgain }) {
                 </div>
                 <div>
                   <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.01em' }}>
-                    {scores[idx]?.correct ? 'Correct!' : 'Not quite.'}
+                    {scores[idx]?.correct ? t('play.correct') : t('play.not_quite')}
                   </div>
                   <div style={{ fontSize: 13, opacity: 0.8 }}>
                     {scores[idx]?.correct
-                      ? `+${scores[idx].award} points · time bonus included`
-                      : 'The correct answer was highlighted above.'}
+                      ? `+${scores[idx].award} pts · ${t('play.time_bonus')}`
+                      : t('play.correct_above')}
                   </div>
                 </div>
                 <button className="btn btn--primary" style={{ marginLeft: 'auto' }} onClick={next}>
-                  {idx === questions.length - 1 ? 'See results' : 'Next'} <Icon name="arrowRight" size={14} />
+                  {idx === questions.length - 1 ? t('play.see_results') : t('play.next')} <Icon name="arrowRight" size={14} />
                 </button>
               </div>
             </div>
@@ -668,7 +669,7 @@ function OpenAnswer({ value, onChange, phase, expected, correct }) {
         value={value}
         onChange={e => onChange(e.target.value)}
         disabled={phase !== 'question'}
-        placeholder="Type your answer..."
+        placeholder={t('play.type_answer')}
         style={{
           width: '100%', fontSize: 24, fontWeight: 500,
           letterSpacing: '-0.01em',
@@ -682,7 +683,7 @@ function OpenAnswer({ value, onChange, phase, expected, correct }) {
       />
       {phase === 'reveal' && !correct && (
         <div style={{ marginTop: 12, fontSize: 14, color: 'var(--text-muted)' }}>
-          Expected: <span style={{ color: 'var(--text)', fontWeight: 600 }}>{expected}</span>
+          {t('play.expected')} <span style={{ color: 'var(--text)', fontWeight: 600 }}>{expected}</span>
         </div>
       )}
     </div>
@@ -748,12 +749,12 @@ function PlayerResult({ scores, total, quizTitle, quizId, onExit, onPlayAgain })
           }}>
             <Icon name="star" size={42} strokeWidth={2} />
           </div>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600 }}>Your result</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600 }}>{t('play.your_result')}</div>
           <h1 style={{ fontSize: 80, fontWeight: 700, letterSpacing: '-0.04em', marginTop: 8, lineHeight: 1 }} className="mono">
             {totalPoints}
           </h1>
           <p style={{ fontSize: 18, color: 'var(--text-muted)', marginTop: 12 }}>
-            <span style={{ color: 'var(--text)', fontWeight: 600 }}>{correct} of {total}</span> correct · <span className="mono">{pct}%</span>
+            <span style={{ color: 'var(--text)', fontWeight: 600 }}>{correct} of {total}</span> {t('play.of_correct')} · <span className="mono">{pct}%</span>
           </p>
 
           {creditInfo === null ? (
@@ -763,7 +764,7 @@ function PlayerResult({ scores, total, quizTitle, quizId, onExit, onPlayAgain })
               padding: '14px 22px', borderRadius: 999, marginTop: 24,
               color: 'var(--text-faint)', fontSize: 13,
             }}>
-              <span className="mono">Calculating credits…</span>
+              <span className="mono">{t('play.calculating')}</span>
             </div>
           ) : creditsEarned > 0 ? (
             <div className="credits-earned scale-in" style={{
@@ -781,7 +782,7 @@ function PlayerResult({ scores, total, quizTitle, quizId, onExit, onPlayAgain })
               </div>
               <div style={{ textAlign: 'left' }}>
                 <div className="mono" style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1 }}>+{creditsEarned}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 3 }}>Credits earned</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 3 }}>{t('play.credits_earned')}</div>
               </div>
             </div>
           ) : alreadyRewarded ? (
@@ -792,7 +793,7 @@ function PlayerResult({ scores, total, quizTitle, quizId, onExit, onPlayAgain })
               color: 'var(--text-muted)', fontSize: 13, fontWeight: 500,
             }}>
               <Icon name="check" size={15} />
-              Already completed — no credits awarded again
+              {t('play.already_rewarded')}
             </div>
           ) : isOwnQuiz ? (
             <div style={{
@@ -802,7 +803,7 @@ function PlayerResult({ scores, total, quizTitle, quizId, onExit, onPlayAgain })
               color: 'var(--text-muted)', fontSize: 13, fontWeight: 500,
             }}>
               <Icon name="folder" size={15} />
-              Your own quiz — no credits for self-play
+              {t('play.own_quiz')}
             </div>
           ) : null}
 
@@ -820,9 +821,9 @@ function PlayerResult({ scores, total, quizTitle, quizId, onExit, onPlayAgain })
           </div>
 
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 40 }}>
-            <button className="btn btn--secondary btn--lg" onClick={onExit}>Back to dashboard</button>
+            <button className="btn btn--secondary btn--lg" onClick={onExit}>{t('play.back_dash')}</button>
             <button className="btn btn--primary btn--lg" onClick={onPlayAgain}>
-              Play again <Icon name="arrowRight" size={14} />
+              {t('play.play_again')} <Icon name="arrowRight" size={14} />
             </button>
           </div>
         </div>

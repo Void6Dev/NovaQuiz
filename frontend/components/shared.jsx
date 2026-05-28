@@ -106,4 +106,35 @@ function CoverPlaceholder({ label, hue = 130, lightness = 90 }) {
   );
 }
 
-Object.assign(window, { PageHeader, SearchInput, Modal, Toggle, Tooltip, Stat, CoverPlaceholder });
+// === Brand logo mark — SVG with n-orbit geometry ===
+// Strokes use currentColor; accent dot uses --accent; knockout uses --bg.
+function NQLogo({ size = 28 }) {
+  return (
+    <svg
+      width={size} height={size}
+      viewBox="0 0 64 64"
+      fill="none"
+      style={{ display: 'block', flexShrink: 0 }}
+      aria-hidden="true"
+    >
+      {/* n letterform: caps-height 24 · stem stroke 5.5 */}
+      <path
+        d="M14 48 L14 18 C14 10 40 10 40 27 L40 48"
+        stroke="currentColor" strokeWidth="5.5"
+        strokeLinecap="round" strokeLinejoin="round"
+      />
+      {/* orbit: rx 26 · ry 11 · rotate -22° */}
+      <ellipse
+        cx="30" cy="34" rx="26" ry="11"
+        transform="rotate(-22 30 34)"
+        stroke="currentColor" strokeWidth="2" fill="none"
+      />
+      {/* body outline — knocks back orbit line behind the dot */}
+      <circle cx="54" cy="29" r="6" style={{ fill: 'var(--bg, #fff)' }} />
+      {/* orbiting body: r 4 · center (54, 29) */}
+      <circle cx="54" cy="29" r="4" style={{ fill: 'var(--accent, oklch(62% 0.28 130))' }} />
+    </svg>
+  );
+}
+
+Object.assign(window, { PageHeader, SearchInput, Modal, Toggle, Tooltip, Stat, CoverPlaceholder, NQLogo });

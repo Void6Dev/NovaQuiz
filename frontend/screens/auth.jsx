@@ -5,8 +5,8 @@ function Auth({ mode: initialMode = 'login', onSuccess, onSwitch }) {
     <div className="auth-page" data-screen-label={mode === 'login' ? '00 Login' : '00 Register'}>
       <div className="auth-left">
         <div className="auth-brand">
-          <div className="sidebar__logo-mark" style={{ width: 32, height: 32, fontSize: 15 }}>Q</div>
-          <span style={{ fontWeight: 700, fontSize: 17, letterSpacing: '-0.02em' }}>Quiz</span>
+          <NQLogo size={32} />
+          <span style={{ fontWeight: 700, fontSize: 17, letterSpacing: '-0.02em' }}>Nova<span style={{ color: 'var(--accent)' }}>Quiz</span></span>
         </div>
         <div className="auth-card">
           {mode === 'login'

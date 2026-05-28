@@ -27,14 +27,14 @@ function Analytics({ onNav }) {
         <button className="btn btn--secondary"><Icon name="share" size={15} /> {t('anal.export')}</button>
       </PageHeader>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
+      <div className="anal-stats-grid">
         <Stat label={t('anal.sessions')}   value="1,284" delta="+18%" hint={t('anal.last_7d')} />
         <Stat label={t('anal.completion')} value="91.2%" delta="+2.1%" />
         <Stat label={t('anal.avg_score')}  value="73%"   delta="+4%" />
         <Stat label={t('anal.avg_dur')}    value="4:32"  hint={t('anal.per_session')} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 24 }}>
+      <div className="anal-chart-grid">
         <div className="card" style={{ padding: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24 }}>
             <div>
@@ -58,7 +58,7 @@ function Analytics({ onNav }) {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 16 }}>
+      <div className="anal-bottom-grid">
         <div className="card" style={{ padding: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('anal.top_quizzes')}</div>

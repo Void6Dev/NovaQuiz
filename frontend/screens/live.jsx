@@ -36,6 +36,7 @@ function avatarText(username) {
 }
 
 function LiveHost({ onNav }) {
+  window.useLang();
   const [phase, setPhase] = useState('loading'); // loading | error | lobby | question | waiting | results | podium
   const [error, setError] = useState('');
   const [sessionId, setSessionId] = useState(null);
@@ -57,7 +58,7 @@ function LiveHost({ onNav }) {
     const params = window.getQueryParams();
     const quizId = params.quizId;
     if (!quizId) {
-      setError('Квиз не выбран. Откройте квиз в редакторе и нажмите «Run live».');
+      setError(t('live.no_quiz'));
       setPhase('error');
       return;
     }
@@ -74,7 +75,7 @@ function LiveHost({ onNav }) {
       questionsRef.current = qs;
       setPhase('lobby');
     }).catch(err => {
-      setError(err.message || 'Не удалось создать сессию.');
+      setError(err.message || t('live.err_create'));
       setPhase('error');
     });
   }, []);
@@ -151,7 +152,7 @@ function LiveHost({ onNav }) {
 
   const startQuiz = () => {
     if (questionsRef.current.length === 0) {
-      showToast('No questions in this quiz — add some in the editor first.', 'error');
+      showToast(t('live.no_q_toast'), 'error');
       return;
     }
     window.API.post('/sessions/' + sessionId + '/start/', {
@@ -178,7 +179,7 @@ function LiveHost({ onNav }) {
   if (phase === 'loading') {
     return (
       <div style={{ height: '100vh', display: 'grid', placeItems: 'center', color: 'var(--text-muted)' }}>
-        Creating session…
+        {t('live.loading')}
       </div>
     );
   }
@@ -186,9 +187,9 @@ function LiveHost({ onNav }) {
     return (
       <div style={{ height: '100vh', display: 'grid', placeItems: 'center' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>Ошибка</div>
+          <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>{t('live.err_title')}</div>
           <div style={{ color: 'var(--text-muted)', marginBottom: 20 }}>{error}</div>
-          <button className="btn btn--primary" onClick={() => onNav('dashboard')}>← Dashboard</button>
+          <button className="btn btn--primary" onClick={() => onNav('dashboard')}>{t('live.back_dash')}</button>
         </div>
       </div>
     );
@@ -257,37 +258,37 @@ function LiveLobby({ pin, quizTitle, participants, onStart, onExit, onKick, host
       <div className="live__header">
         <button className="btn btn--ghost btn--icon" onClick={onExit}><Icon name="x" size={18} /></button>
         <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>
-          Hosting — <span style={{ color: 'var(--text)' }}>{quizTitle || 'Quiz'}</span>
+          {t('live.hosting')} <span style={{ color: 'var(--text)' }}>{quizTitle || 'Quiz'}</span>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
           <span className="pill" style={{ background: 'oklch(60% 0.18 25 / 0.12)', color: 'oklch(50% 0.18 25)', border: 0 }}>
             <span style={{ width: 6, height: 6, borderRadius: 99, background: 'oklch(60% 0.18 25)', animation: 'pulse-ring 1.5s infinite' }} />
-            Live
+            {t('live.live_pill')}
           </span>
         </div>
       </div>
 
       <div className="live__lobby">
         <div className="live__lobby-side">
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Join at</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>{t('live.join_at')}</div>
           <div style={{ fontSize: 28, fontWeight: 600, letterSpacing: '-0.02em', marginBottom: 32 }}>quiz.io/play</div>
 
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Game code</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>{t('live.game_code')}</div>
           <div className="mono" style={{ fontSize: 76, fontWeight: 700, letterSpacing: '0.08em', lineHeight: 1, marginBottom: 20 }}>
             {pin}
           </div>
 
           <div style={{ display: 'flex', gap: 8, marginBottom: 24, alignItems: 'center' }}>
-            <button className="btn btn--secondary" onClick={() => { navigator.clipboard?.writeText(pin); showToast('Code copied!', 'success'); }}>
-              <Icon name="copy" size={14} /> Copy code
+            <button className="btn btn--secondary" onClick={() => { navigator.clipboard?.writeText(pin); showToast(t('live.code_copied'), 'success'); }}>
+              <Icon name="copy" size={14} /> {t('live.copy_code')}
             </button>
-            <button className="btn btn--secondary" onClick={() => { const u = window.location.origin + '/sessions.html?code=' + pin; navigator.clipboard?.writeText(u); showToast('Link copied!', 'success'); }}>
-              <Icon name="share" size={14} /> Copy link
+            <button className="btn btn--secondary" onClick={() => { const u = window.location.origin + '/sessions.html?code=' + pin; navigator.clipboard?.writeText(u); showToast(t('live.link_copied'), 'success'); }}>
+              <Icon name="share" size={14} /> {t('live.copy_link')}
             </button>
           </div>
 
           <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Scan to join</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>{t('live.scan')}</div>
             <div style={{
               display: 'inline-block', padding: 10, background: '#fff',
               borderRadius: 12, border: '1px solid var(--border)',
@@ -299,14 +300,14 @@ function LiveLobby({ pin, quizTitle, participants, onStart, onExit, onKick, host
           <HostSettings settings={hostSettings} onChange={onHostSettingsChange} />
 
           <button className="btn btn--accent btn--xl" onClick={onStart} style={{ alignSelf: 'flex-start', marginTop: 24 }}>
-            Start with {participants.length} {participants.length === 1 ? 'player' : 'players'} <Icon name="arrowRight" size={16} />
+            {t('live.start_with')} {participants.length} {participants.length === 1 ? t('live.player') : t('live.players')} <Icon name="arrowRight" size={16} />
           </button>
         </div>
 
         <div className="live__lobby-participants">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              Players in lobby
+              {t('live.lobby_players')}
             </div>
             <span className="mono pill" style={{ fontWeight: 600 }}>
               <span style={{ width: 6, height: 6, borderRadius: 99, background: 'oklch(60% 0.18 145)', animation: 'pulse-ring 2s infinite' }} />
@@ -350,8 +351,8 @@ function LiveLobby({ pin, quizTitle, participants, onStart, onExit, onKick, host
                 gridColumn: '1 / -1',
               }}>
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 13, marginBottom: 4 }}>Waiting for players…</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-faint)' }}>Share the code above to join</div>
+                  <div style={{ fontSize: 13, marginBottom: 4 }}>{t('live.wait_p')}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-faint)' }}>{t('live.share_hint')}</div>
                 </div>
               </div>
             )}
@@ -364,7 +365,7 @@ function LiveLobby({ pin, quizTitle, participants, onStart, onExit, onKick, host
                 color: 'var(--text-faint)',
                 minHeight: 56,
               }}>
-                <span style={{ fontSize: 12 }}>Waiting for more...</span>
+                <span style={{ fontSize: 12 }}>{t('live.wait_more')}</span>
               </div>
             )}
           </div>
@@ -388,7 +389,7 @@ function LiveQuestion({ question, idx, total, answered, totalP, timeLeft, timePe
         </span>
         <div style={{ flex: 1 }} />
         <span className="pill mono"><Icon name="users" size={12} /> {totalP}</span>
-        <button className="btn btn--secondary btn--sm" onClick={onSkip}>End question</button>
+        <button className="btn btn--secondary btn--sm" onClick={onSkip}>{t('live.end_q')}</button>
       </div>
 
       <div className="live__qstage">
@@ -447,7 +448,7 @@ function LiveQuestion({ question, idx, total, answered, totalP, timeLeft, timePe
           <div style={{ marginTop: 36, display: 'flex', alignItems: 'center', gap: 16 }}>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>
               <span className="mono" style={{ fontSize: 20, fontWeight: 600, color: 'var(--text)' }}>{answered}</span>
-              <span style={{ marginLeft: 4 }}>/ {totalP} answered</span>
+              <span style={{ marginLeft: 4 }}>/ {totalP} {t('live.answered')}</span>
             </div>
             <div style={{ flex: 1, height: 8, background: 'var(--bg-2)', borderRadius: 99, overflow: 'hidden', border: '1px solid var(--border)' }}>
               <div style={{
@@ -481,10 +482,10 @@ function LiveResults({ question, answerDist, idx, total, participants, onNext, o
     <div className="live fade-in" data-screen-label="05d Live results">
       <div className="live__header">
         <button className="btn btn--ghost btn--icon" onClick={onExit}><Icon name="x" size={18} /></button>
-        <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>Q{idx + 1} results</span>
+        <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('live.q_label')}{idx + 1} {t('live.results_label')}</span>
         <div style={{ flex: 1 }} />
         <button className="btn btn--accent" onClick={onNext}>
-          {idx === total - 1 ? 'Show podium' : 'Next question'} <Icon name="arrowRight" size={14} />
+          {idx === total - 1 ? t('live.show_podium') : t('live.next_q')} <Icon name="arrowRight" size={14} />
         </button>
       </div>
 
@@ -531,10 +532,10 @@ function LiveResults({ question, answerDist, idx, total, participants, onNext, o
 
         <div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 16 }}>
-            Leaderboard
+            {t('live.leaderboard')}
           </div>
           {top3.length === 0 ? (
-            <div style={{ color: 'var(--text-faint)', fontSize: 13 }}>No players yet</div>
+            <div style={{ color: 'var(--text-faint)', fontSize: 13 }}>{t('live.no_players')}</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {top3.map((p, i) => {
@@ -579,18 +580,18 @@ function LivePodium({ participants, onExit, onAnalytics }) {
       <div className="live__header">
         <button className="btn btn--ghost btn--icon" onClick={onExit}><Icon name="x" size={18} /></button>
         <div style={{ flex: 1 }} />
-        <button className="btn btn--primary btn--sm" onClick={onAnalytics}>View analytics <Icon name="arrowRight" size={14} /></button>
+        <button className="btn btn--primary btn--sm" onClick={onAnalytics}>{t('live.view_analytics')} <Icon name="arrowRight" size={14} /></button>
       </div>
 
       <div style={{ flex: 1, display: 'grid', placeItems: 'center', padding: 40 }}>
         <div style={{ textAlign: 'center', maxWidth: 800, width: '100%' }}>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Final podium</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{t('live.final_podium')}</div>
           <h1 style={{ fontSize: 56, fontWeight: 700, letterSpacing: '-0.04em', marginTop: 8, marginBottom: 60 }}>
-            Game over 🎉
+            {t('live.game_over')}
           </h1>
 
           {top3.length === 0 ? (
-            <div style={{ color: 'var(--text-muted)' }}>No players participated.</div>
+            <div style={{ color: 'var(--text-muted)' }}>{t('live.no_participated')}</div>
           ) : (
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 16 }}>
               {order.map((p, i) => {
@@ -605,7 +606,7 @@ function LivePodium({ participants, onExit, onAnalytics }) {
                       background: `linear-gradient(135deg, oklch(80% 0.14 ${hue}), oklch(70% 0.18 ${hue + 40}))`,
                     }}>{avatarText(p.username)}</div>
                     <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 2 }}>{p.username}</div>
-                    <div className="mono" style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 12 }}>{p.score} pts</div>
+                    <div className="mono" style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 12 }}>{p.score} {t('live.pts')}</div>
                     <div style={{
                       height: heights[i],
                       background: rank === 0 ? 'var(--accent)' : 'var(--surface)',
@@ -713,12 +714,12 @@ function HostSettings({ settings, onChange }) {
         display: 'flex', alignItems: 'center', gap: 6,
       }}>
         <Icon name="settings" size={12} />
-        Host settings
+        {t('live.hs_title')}
       </div>
 
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-          <label style={{ fontSize: 13, fontWeight: 500 }}>Time per question</label>
+          <label style={{ fontSize: 13, fontWeight: 500 }}>{t('live.hs_time')}</label>
           <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>{settings.timePerQuestion}s</span>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
@@ -740,7 +741,7 @@ function HostSettings({ settings, onChange }) {
 
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-          <label style={{ fontSize: 13, fontWeight: 500 }}>Max players</label>
+          <label style={{ fontSize: 13, fontWeight: 500 }}>{t('live.hs_max')}</label>
           <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>{settings.maxPlayers}</span>
         </div>
         <input
@@ -783,7 +784,7 @@ function LiveWaitForOthers({ answered, totalP, idx, total, onExit }) {
             <Icon name="clock" size={28} strokeWidth={1.6} />
           </div>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-            Time's up
+            {t('live.times_up')}
           </div>
           <h1 style={{ fontSize: 44, fontWeight: 700, letterSpacing: '-0.03em', marginTop: 8, lineHeight: 1.05 }}>
             <span className="mono">{answered}</span>
@@ -791,7 +792,7 @@ function LiveWaitForOthers({ answered, totalP, idx, total, onExit }) {
             <span className="mono">{totalP}</span>
           </h1>
           <p style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 12 }}>
-            answered — showing results now.
+            {t('live.showing_results')}
           </p>
 
           <div style={{ marginTop: 32, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -820,6 +821,7 @@ function Live({ onNav }) {
 
 // ─── Participant (player) live view ──────────────────────────────────────────
 function LiveParticipant({ sessionId, onNav }) {
+  window.useLang();
   const [phase, setPhase]       = useState('loading'); // loading|error|waiting|question|feedback|done
   const [session, setSession]   = useState(null);
   const [questions, setQuestions] = useState([]);
@@ -917,7 +919,7 @@ function LiveParticipant({ sessionId, onNav }) {
   // ── Loading ──
   if (phase === 'loading') return (
     <div style={{ height: '100vh', display: 'grid', placeItems: 'center', color: 'var(--text-muted)' }}>
-      <span className="mono" style={{ fontSize: 13 }}>Connecting to session…</span>
+      <span className="mono" style={{ fontSize: 13 }}>{t('live.connecting')}</span>
     </div>
   );
 
@@ -926,7 +928,7 @@ function LiveParticipant({ sessionId, onNav }) {
     <div style={{ height: '100vh', display: 'grid', placeItems: 'center' }}>
       <div style={{ textAlign: 'center', maxWidth: 360 }}>
         <p style={{ color: 'var(--text-muted)', marginBottom: 20 }}>{error}</p>
-        <button className="btn btn--secondary" onClick={() => onNav('sessions')}>← Back to sessions</button>
+        <button className="btn btn--secondary" onClick={() => onNav('sessions')}>{t('live.back_sessions')}</button>
       </div>
     </div>
   );
@@ -937,7 +939,7 @@ function LiveParticipant({ sessionId, onNav }) {
       <div className="live__header">
         <button className="btn btn--ghost btn--icon" onClick={() => onNav('sessions')}><Icon name="x" size={18} /></button>
         <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-muted)' }}>
-          Joined — <span style={{ color: 'var(--text)' }}>{session?.quiz_title || 'Quiz'}</span>
+          {t('live.joined')} <span style={{ color: 'var(--text)' }}>{session?.quiz_title || 'Quiz'}</span>
         </span>
         <div style={{ flex: 1 }} />
       </div>
@@ -956,10 +958,10 @@ function LiveParticipant({ sessionId, onNav }) {
             {session?.code || '------'}
           </div>
           <h2 style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.02em', marginBottom: 8 }}>
-            Waiting for host to start
+            {t('live.wait_host')}
           </h2>
           <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>
-            You've joined <strong>{session?.quiz_title}</strong>. Hang tight!
+            {t('live.joined_hint_1')} <strong>{session?.quiz_title}</strong>. {t('live.joined_hint_2')}
           </p>
         </div>
       </div>
@@ -984,13 +986,13 @@ function LiveParticipant({ sessionId, onNav }) {
           }}>
             <Icon name="star" size={44} strokeWidth={2} />
           </div>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Your result</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{t('live.your_result')}</div>
           <div className="mono" style={{ fontSize: 80, fontWeight: 700, letterSpacing: '-0.04em', lineHeight: 1, marginTop: 8 }}>{totalScore}</div>
           <p style={{ fontSize: 18, color: 'var(--text-muted)', marginTop: 12 }}>
-            <span style={{ color: 'var(--text)', fontWeight: 600 }}>{correctCount} of {questions.length}</span> correct
+            <span style={{ color: 'var(--text)', fontWeight: 600 }}>{correctCount} of {questions.length}</span> {t('live.of_correct')}
           </p>
           <button className="btn btn--primary btn--lg" style={{ marginTop: 32 }} onClick={() => onNav('sessions')}>
-            Back to sessions
+            {t('live.back_sess_btn')}
           </button>
         </div>
       </div>
@@ -1022,7 +1024,7 @@ function LiveParticipant({ sessionId, onNav }) {
         <div key={qIdx} className="slide-up" style={{ width: '100%', maxWidth: 720, display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
             <span className="mono" style={{ fontSize: 11, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-              Question {qIdx + 1}
+              {t('live.q_label')} {qIdx + 1}
             </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <svg width={44} height={44} viewBox="0 0 44 44">
@@ -1098,10 +1100,10 @@ function LiveParticipant({ sessionId, onNav }) {
                 </div>
                 <div>
                   <div style={{ fontSize: 16, fontWeight: 600 }}>
-                    {answerResult?.correct ? 'Correct!' : selected ? 'Not quite.' : "Time's up!"}
+                    {answerResult?.correct ? t('live.correct') : selected ? t('live.not_quite') : t('live.times_up_p')}
                   </div>
                   <div style={{ fontSize: 13, opacity: 0.8 }}>
-                    {answerResult?.correct ? 'Next question coming up…' : 'The correct answer is highlighted above.'}
+                    {answerResult?.correct ? t('live.next_coming') : t('live.correct_above')}
                   </div>
                 </div>
               </div>

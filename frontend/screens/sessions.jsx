@@ -45,7 +45,7 @@ function Sessions({ onNav }) {
       </PageHeader>
 
       <div className="card" style={{ padding: 28, marginBottom: 32, background: 'var(--bg-2)' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 32, alignItems: 'center' }}>
+        <div className="sess-join-grid">
           <form onSubmit={submitCode}>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
               {t('sess.got_code')}
@@ -92,7 +92,7 @@ function Sessions({ onNav }) {
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'space-between', marginBottom: 20 }}>
+      <div className="toolbar-row" style={{ marginBottom: 20 }}>
         <SearchInput value={search} onChange={setSearch} placeholder={t('sess.search')} />
         <div style={{
           display: 'flex', background: 'var(--surface)', borderRadius: 'var(--r-md)',
@@ -117,19 +117,12 @@ function Sessions({ onNav }) {
         </div>
       </div>
 
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{
-          display: 'grid', gridTemplateColumns: '120px 2fr 1.2fr 1fr 1fr auto',
-          gap: 16, padding: '12px 20px',
-          background: 'var(--bg-2)',
-          borderBottom: '1px solid var(--border)',
-          fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em',
-          color: 'var(--text-muted)', fontWeight: 600,
-        }}>
+      <div className="card sess-table-wrap" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="sess-table-header">
           <div>{t('sess.col_code')}</div>
           <div>{t('sess.col_quiz')}</div>
-          <div>{t('sess.col_host')}</div>
-          <div>{t('sess.col_players')}</div>
+          <div className="sess-col-host">{t('sess.col_host')}</div>
+          <div className="sess-col-players">{t('sess.col_players')}</div>
           <div>{t('sess.col_status')}</div>
           <div />
         </div>
@@ -141,30 +134,24 @@ function Sessions({ onNav }) {
         {filtered.map((s, i) => (
           <div
             key={s.id}
-            style={{
-              display: 'grid', gridTemplateColumns: '120px 2fr 1.2fr 1fr 1fr auto',
-              gap: 16, padding: '16px 20px',
-              borderBottom: i < filtered.length - 1 ? '1px solid var(--border)' : 'none',
-              alignItems: 'center',
-              animationDelay: `${i * 30}ms`,
-            }}
-            className="fade-in"
+            className={`sess-table-row fade-in ${i < filtered.length - 1 ? 'sess-table-row--sep' : ''}`}
+            style={{ animationDelay: `${i * 30}ms` }}
           >
-            <div className="mono" style={{ fontSize: 16, fontWeight: 600, letterSpacing: '0.05em' }}>{s.code}</div>
-            <div>
+            <div className="mono sess-cell-code" style={{ fontSize: 16, fontWeight: 600, letterSpacing: '0.05em' }}>{s.code}</div>
+            <div className="sess-cell-quiz">
               <div style={{ fontSize: 14, fontWeight: 600 }}>{s.quiz}</div>
               <div style={{ fontSize: 12, color: 'var(--text-faint)', display: 'flex', gap: 10, marginTop: 2 }}>
                 <span><Icon name="clock" size={11} style={{ verticalAlign: -1, marginRight: 3 }} /><span className="mono">{s.timePerQuestion}s</span> {t('sess.per_q')}</span>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="sess-col-host" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div className="avatar" style={{
                 width: 22, height: 22, fontSize: 10,
                 background: `linear-gradient(135deg, oklch(80% 0.14 ${(s.host.charCodeAt(0) * 7) % 360}), oklch(70% 0.18 ${(s.host.charCodeAt(0) * 7 + 40) % 360}))`,
               }}>{s.host[0].toUpperCase()}</div>
               <span className="mono" style={{ fontSize: 13 }}>@{s.host}</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="sess-col-players" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span className="mono" style={{ fontSize: 13, fontWeight: 600 }}>{s.players}/{s.maxPlayers}</span>
               <div style={{ flex: 1, maxWidth: 60, height: 4, background: 'var(--bg-2)', borderRadius: 99, overflow: 'hidden' }}>
                 <div style={{
@@ -174,7 +161,7 @@ function Sessions({ onNav }) {
                 }} />
               </div>
             </div>
-            <div>
+            <div className="sess-cell-status">
               {s.started ? (
                 <span className="pill pill--dot" style={{ color: 'oklch(60% 0.18 25)', borderColor: 'oklch(60% 0.18 25 / 0.3)', background: 'oklch(60% 0.18 25 / 0.08)' }}>
                   {t('sess.running')}
@@ -187,22 +174,63 @@ function Sessions({ onNav }) {
                 </span>
               )}
             </div>
-            <button
-              className="btn btn--secondary btn--sm"
-              onClick={async () => {
-                try {
-                  const session = await window.API.post('/sessions/join/', { code: s.code });
-                  onNav('live', { sessionId: session.id });
-                } catch (err) { showToast(err.message, 'error'); }
-              }}
-              disabled={s.started || s.players >= s.maxPlayers}
-              style={{ opacity: (s.started || s.players >= s.maxPlayers) ? 0.4 : 1 }}
-            >
-              {t('sess.join')}
-            </button>
+            <div className="sess-cell-action">
+              <button
+                className="btn btn--secondary btn--sm"
+                onClick={async () => {
+                  try {
+                    const session = await window.API.post('/sessions/join/', { code: s.code });
+                    onNav('live', { sessionId: session.id });
+                  } catch (err) { showToast(err.message, 'error'); }
+                }}
+                disabled={s.started || s.players >= s.maxPlayers}
+                style={{ opacity: (s.started || s.players >= s.maxPlayers) ? 0.4 : 1 }}
+              >
+                {t('sess.join')}
+              </button>
+            </div>
           </div>
         ))}
       </div>
+
+      <style>{`
+        /* Desktop table layout */
+        .sess-table-header,
+        .sess-table-row {
+          display: grid;
+          grid-template-columns: 120px 2fr 1.2fr 1fr 1fr auto;
+          gap: 16px;
+          padding: 12px 20px;
+          align-items: center;
+        }
+        .sess-table-header {
+          background: var(--bg-2);
+          border-bottom: 1px solid var(--border);
+          font-size: 11px; text-transform: uppercase;
+          letter-spacing: 0.06em; color: var(--text-muted); font-weight: 600;
+        }
+        .sess-table-row { padding: 16px 20px; }
+        .sess-table-row--sep { border-bottom: 1px solid var(--border); }
+
+        /* Mobile: cards */
+        @media (max-width: 768px) {
+          .sess-table-header { display: none; }
+          .sess-table-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: auto auto auto;
+            gap: 6px 12px;
+            padding: 14px 16px;
+          }
+          .sess-cell-code  { grid-column: 1; grid-row: 1; font-size: 20px; }
+          .sess-cell-status { grid-column: 2; grid-row: 1; justify-self: end; align-self: center; }
+          .sess-cell-quiz  { grid-column: 1 / 3; grid-row: 2; }
+          .sess-col-host   { grid-column: 1; grid-row: 3; align-self: center; }
+          .sess-col-players { grid-column: 2; grid-row: 3; justify-self: end; align-self: center; }
+          .sess-cell-action { grid-column: 1 / 3; grid-row: 4; display: flex; justify-content: flex-end; padding-top: 4px; }
+          .sess-cell-action .btn { width: 100%; justify-content: center; }
+        }
+      `}</style>
     </div>
   );
 }

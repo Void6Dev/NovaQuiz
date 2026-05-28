@@ -1,5 +1,6 @@
 // === Shared With Me ===
 function SharedWithMe({ onNav }) {
+  window.useLang();
   const [quizzes, setQuizzes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch]   = useState('');
@@ -30,7 +31,7 @@ function SharedWithMe({ onNav }) {
 
   return (
     <div className="page fade-in" data-screen-label="Shared with me">
-      <PageHeader title="Shared with me" subtitle="Quizzes from workspaces you've joined." />
+      <PageHeader title={t('shared.title')} subtitle={t('shared.subtitle')} />
 
       {!loading && quizzes.length === 0 ? (
         <div style={{
@@ -45,22 +46,22 @@ function SharedWithMe({ onNav }) {
           }}>
             <Icon name="users" size={24} />
           </div>
-          <h3 style={{ fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em' }}>No shared quizzes yet</h3>
+          <h3 style={{ fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em' }}>{t('shared.no_title')}</h3>
           <p style={{ fontSize: 14, color: 'var(--text-muted)', maxWidth: 320, lineHeight: 1.5 }}>
-            Accept a workspace invitation to see quizzes shared with you.
+            {t('shared.no_hint')}
           </p>
           <button className="btn btn--secondary" style={{ marginTop: 8 }} onClick={() => onNav('settings')}>
-            <Icon name="users" size={14} /> Go to workspace settings
+            <Icon name="users" size={14} /> {t('shared.go_ws')}
           </button>
         </div>
       ) : (
         <>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flex: 1 }}>
-              <SearchInput value={search} onChange={setSearch} placeholder="Search quizzes…" />
+          <div className="toolbar-row">
+            <div className="toolbar-row__left">
+              <SearchInput value={search} onChange={setSearch} placeholder={t('shared.search')} />
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{filtered.length} of {quizzes.length}</span>
+            <div className="toolbar-row__right">
+              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{filtered.length} {t('shared.of')} {quizzes.length}</span>
               <div style={{
                 display: 'flex', background: 'var(--surface)', borderRadius: 'var(--r-md)',
                 border: '1px solid var(--border)', padding: 3,
@@ -86,13 +87,13 @@ function SharedWithMe({ onNav }) {
           <TopicChips selected={topicFilter} onSelect={setTopicFilter} />
 
           {loading ? (
-            <div style={{ padding: '80px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading…</div>
+            <div style={{ padding: '80px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>{t('shared.loading')}</div>
           ) : filtered.length === 0 ? (
             <div style={{ padding: '60px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>
-              No quizzes match your search.
+              {t('shared.no_match')}
             </div>
           ) : view === 'grid' ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 20 }}>
+            <div className="quiz-grid">
               {filtered.map((q, i) => (
                 <QuizCard
                   key={q.id}

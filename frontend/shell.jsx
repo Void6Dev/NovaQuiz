@@ -72,9 +72,11 @@ function PageShell({ layout = 'app', current, children, theme: themeOverride, on
       <div className={`app ${layout === 'full' ? 'app--no-sidebar' : ''}`}>
         {layout === 'app' && <Sidebar current={current} />}
         <main className="main">
+          {layout === 'app' && window.MobileHeader && <MobileHeader current={current} />}
           {children}
         </main>
       </div>
+      {layout === 'app' && window.MobileNav && <MobileNav current={current} />}
       {window.ToastContainer && React.createElement(window.ToastContainer)}
       {window.CommandPalette && React.createElement(window.CommandPalette)}
 

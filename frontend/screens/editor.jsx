@@ -1,5 +1,6 @@
 // === Editor ===
 function Editor({ onNav }) {
+  window.useLang();
   const [quizId, setQuizId]         = useState(null);
   const quizIdRef                    = React.useRef(null);
   const [questions, setQuestions]   = useState([]);
@@ -15,6 +16,7 @@ function Editor({ onNav }) {
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState('');
   const [importing, setImporting] = useState(false);
+  const [activeTab, setActiveTab]   = useState('edit'); // 'list' | 'edit' | 'inspect'
   const titleSaveTimer = React.useRef(null);
   const qSaveTimers    = React.useRef({});
   const quizCoverRef    = React.useRef(null);
@@ -199,7 +201,7 @@ function Editor({ onNav }) {
       }
       if (prompt && opts.length >= 2) parsed.push({ prompt, opts });
     }
-    if (!parsed.length) { showToast('No valid questions found. Check the format.', 'error'); return; }
+    if (!parsed.length) { showToast(t('edit.no_valid'), 'error'); return; }
     setImporting(true);
     let added = 0;
     for (const { prompt, opts } of parsed) {
@@ -216,7 +218,7 @@ function Editor({ onNav }) {
     setImporting(false);
     setImportOpen(false);
     setImportText('');
-    showToast(`Imported ${added} question${added !== 1 ? 's' : ''}`, 'success');
+    showToast(added + ' ' + t('edit.imported'), 'success');
   };
 
   const handleShare = () => {
@@ -233,7 +235,7 @@ function Editor({ onNav }) {
 
   if (loading) return (
     <div style={{ height: '100vh', display: 'grid', placeItems: 'center', color: 'var(--text-muted)' }}>
-      Loading editor…
+      {t('edit.loading')}
     </div>
   );
 
@@ -259,13 +261,13 @@ function Editor({ onNav }) {
           />
           <TopicPicker value={topic} onChange={(v) => { setTopic(v); setSaved(false); }} />
           <span style={{ fontSize: 12, color: 'var(--text-faint)', display: 'flex', alignItems: 'center', gap: 6 }}>
-            {saved ? <><Icon name="check" size={12} /> Saved</> : <>Saving…</>}
+            {saved ? <><Icon name="check" size={12} /> {t('edit.saved')}</> : <>{t('edit.saving')}</>}
           </span>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button className="btn btn--ghost btn--sm" onClick={() => quizCoverRef.current?.click()}>
-            <Icon name="image" size={14} /> {coverSaved ? 'Saved!' : 'Cover'}
+        <div className="editor__topbar-actions">
+          <button className="btn btn--ghost btn--sm editor__topbar-action--desktop" onClick={() => quizCoverRef.current?.click()}>
+            <Icon name="image" size={14} /> {coverSaved ? t('edit.cover_saved') : t('edit.cover')}
           </button>
           <input
             ref={quizCoverRef} type="file" accept="image/*" style={{ display: 'none' }}
@@ -280,23 +282,44 @@ function Editor({ onNav }) {
               e.target.value = '';
             }}
           />
-          <button className="btn btn--secondary btn--sm" onClick={handleShare}>
-            <Icon name="share" size={14} /> {shareCopied ? 'Copied!' : 'Share'}
+          <button className="btn btn--secondary btn--sm editor__topbar-action--desktop" onClick={handleShare}>
+            <Icon name="share" size={14} /> {shareCopied ? t('edit.copied') : t('edit.share')}
           </button>
           <button className="btn btn--secondary btn--sm" onClick={() => onNav('player', { quizId: quizIdRef.current })}>
-            <Icon name="play" size={14} /> Practice
+            <Icon name="play" size={14} />
+            <span className="editor__topbar-action--desktop">{t('edit.practice')}</span>
           </button>
           <button className="btn btn--accent btn--sm" onClick={() => onNav('live', { quizId: quizIdRef.current })}>
-            <Icon name="bolt" size={14} /> Run live
+            <Icon name="bolt" size={14} /> {t('edit.run_live')}
           </button>
         </div>
       </div>
 
       <div className="editor__body">
-        <div className="editor__list">
+
+        {/* ── Mobile-only tab bar: Questions | Edit | Options ── */}
+        <div className="editor__tab-bar editor__tab-bar--mobile">
+          {[
+            { id: 'list',    label: t('edit.tab_list'),    icon: 'list'     },
+            { id: 'edit',    label: t('edit.tab_edit'),    icon: 'edit'     },
+            { id: 'inspect', label: t('edit.tab_options'), icon: 'settings' },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              className={`editor__tab ${activeTab === tab.id ? 'editor__tab--active' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              <Icon name={tab.icon} size={16} />
+              <span>{tab.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* ── Question list (left panel) ── */}
+        <div className={`editor__list ${activeTab !== 'list' ? 'editor__list--mobile-hide' : ''}`}>
           <div className="editor__list-header">
             <span style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600, color: 'var(--text-muted)' }}>
-              Questions <span className="mono" style={{ color: 'var(--text-faint)' }}>· {questions.length}</span>
+              {t('edit.questions')} <span className="mono" style={{ color: 'var(--text-faint)' }}>· {questions.length}</span>
             </span>
             <AddQuestionMenu onAdd={addQuestion} />
           </div>
@@ -307,78 +330,144 @@ function Editor({ onNav }) {
                 question={q}
                 index={i}
                 active={q.id === activeId}
-                onClick={() => setActiveId(q.id)}
+                onClick={() => { setActiveId(q.id); setActiveTab('edit'); }}
                 onDuplicate={() => duplicateQuestion(q.id)}
                 onDelete={() => deleteQuestion(q.id)}
                 onMoveUp={i > 0 ? () => moveQuestion(q.id, 'up') : null}
                 onMoveDown={i < questions.length - 1 ? () => moveQuestion(q.id, 'down') : null}
               />
             ))}
-            <button onClick={() => addQuestion('single')} className="editor__add">
-              <Icon name="plus" size={14} /> Add question
+            <button onClick={() => { addQuestion('single'); setActiveTab('edit'); }} className="editor__add">
+              <Icon name="plus" size={14} /> {t('edit.add_q')}
             </button>
             <button onClick={() => setImportOpen(true)} className="editor__add" style={{ color: 'var(--text-faint)' }}>
-              <Icon name="import" size={14} /> Import
+              <Icon name="import" size={14} /> {t('edit.import_btn')}
             </button>
           </div>
         </div>
 
-        <div className="editor__canvas">
-          {active ? (
-            <QuestionEditor
-              question={active}
-              index={activeIndex}
-              total={questions.length}
-              onChange={updateQuestion}
-              quizId={quizIdRef.current}
-            />
-          ) : (
-            <div style={{ textAlign: 'center', color: 'var(--text-faint)', paddingTop: 64 }}>
-              <div style={{ fontSize: 48, marginBottom: 12, opacity: 0.12, lineHeight: 1 }}>✦</div>
-              <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>No questions yet</div>
-              <div style={{ fontSize: 13, marginBottom: 28 }}>Pick a type to add your first question</div>
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-                {[
-                  { id: 'single',    label: 'Single choice', icon: 'radio' },
-                  { id: 'multi',     label: 'Multi-choice',  icon: 'check' },
-                  { id: 'truefalse', label: 'True / False',  icon: 'flag'  },
-                  { id: 'open',      label: 'Open answer',   icon: 'type'  },
-                ].map(t => (
-                  <button key={t.id} className="btn btn--secondary" onClick={() => addQuestion(t.id)} style={{ gap: 8 }}>
-                    <Icon name={t.icon} size={14} /> {t.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+        {/* ── Right area: desktop tabs (Edit | Options) + panels ── */}
+        <div className={`editor__right ${activeTab === 'list' ? 'editor__right--mobile-hide' : ''}`}>
 
-        <div className="editor__inspector">
-          <Inspector
-            question={active}
-            onChange={updateQuestion}
-            description={description}
-            onDescription={setDesc}
-          />
+          {/* Desktop tab bar */}
+          <div className="editor__tab-bar editor__tab-bar--desktop">
+            {[
+              { id: 'edit',    label: t('edit.tab_edit'),    icon: 'edit'     },
+              { id: 'inspect', label: t('edit.tab_options'), icon: 'settings' },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                className={`editor__tab ${(activeTab === tab.id || (tab.id === 'edit' && activeTab === 'list')) ? 'editor__tab--active' : ''}`}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                <Icon name={tab.icon} size={14} />
+                {tab.label}
+              </button>
+            ))}
+            <div style={{ flex: 1 }} />
+            {active && (
+              <span className="mono" style={{ fontSize: 11, color: 'var(--text-faint)', padding: '0 14px', alignSelf: 'center' }}>
+                {activeIndex + 1} / {questions.length}
+              </span>
+            )}
+          </div>
+
+          {/* Canvas */}
+          <div className={`editor__canvas ${activeTab === 'inspect' ? 'editor__panel--hidden' : ''}`}>
+            {active ? (
+              <QuestionEditor
+                question={active}
+                index={activeIndex}
+                total={questions.length}
+                onChange={updateQuestion}
+                quizId={quizIdRef.current}
+              />
+            ) : (
+              <div style={{ textAlign: 'center', color: 'var(--text-faint)', paddingTop: 64 }}>
+                <div style={{ fontSize: 48, marginBottom: 12, opacity: 0.12, lineHeight: 1 }}>✦</div>
+                <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>{t('edit.no_q')}</div>
+                <div style={{ fontSize: 13, marginBottom: 28 }}>{t('edit.pick_type')}</div>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+                  {[
+                    { id: 'single',    label: t('edit.type_single'), icon: 'radio' },
+                    { id: 'multi',     label: t('edit.type_multi'),  icon: 'check' },
+                    { id: 'truefalse', label: t('edit.type_tf'),     icon: 'flag'  },
+                    { id: 'open',      label: t('edit.type_open'),   icon: 'type'  },
+                  ].map(item => (
+                    <button key={item.id} className="btn btn--secondary" onClick={() => addQuestion(item.id)} style={{ gap: 8 }}>
+                      <Icon name={item.icon} size={14} /> {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Inspector */}
+          <div className={`editor__inspector ${activeTab !== 'inspect' ? 'editor__panel--hidden' : ''}`}>
+            <Inspector
+              question={active}
+              onChange={updateQuestion}
+              description={description}
+              onDescription={setDesc}
+            />
+          </div>
         </div>
       </div>
 
       <style>{`
+        /* ── Base ── */
         .editor { height: 100vh; display: flex; flex-direction: column; }
+
+        /* ── Topbar ── */
         .editor__topbar {
           padding: 12px 20px;
           border-bottom: 1px solid var(--border);
           display: flex; align-items: center; gap: 16px;
           background: var(--bg-2); flex-shrink: 0;
         }
+        .editor__topbar-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+
+        /* ── Body: 2-column grid on desktop ── */
         .editor__body {
-          display: grid; grid-template-columns: 280px 1fr 300px;
+          display: grid;
+          grid-template-columns: 280px 1fr;
           flex: 1; min-height: 0;
         }
+
+        /* ── Shared tab bar ── */
+        .editor__tab-bar {
+          display: flex; align-items: stretch;
+          background: var(--bg-2);
+          border-bottom: 1px solid var(--border);
+          flex-shrink: 0;
+        }
+        .editor__tab {
+          display: flex; align-items: center; gap: 7px;
+          padding: 0 18px; height: 40px;
+          font-size: 13px; font-weight: 500;
+          color: var(--text-muted); background: none; border: none;
+          border-bottom: 2px solid transparent;
+          margin-bottom: -1px;
+          transition: color 120ms var(--ease), border-color 120ms var(--ease), background 100ms;
+          cursor: pointer; white-space: nowrap;
+        }
+        .editor__tab:hover:not(.editor__tab--active) {
+          color: var(--text); background: var(--surface);
+        }
+        .editor__tab--active { color: var(--text); border-bottom-color: var(--text); }
+
+        /* Desktop tab bar lives inside editor__right, mobile one is hidden on desktop */
+        .editor__tab-bar--mobile { display: none; }
+        .editor__tab-bar--desktop { display: flex; }
+
+        /* ── Left: question list ── */
         .editor__list {
           border-right: 1px solid var(--border);
           display: flex; flex-direction: column;
           background: var(--bg-2);
+          min-height: 0; overflow: hidden;
+          grid-row: 1;
         }
         .editor__list-header {
           padding: 16px 16px 10px;
@@ -394,19 +483,71 @@ function Editor({ onNav }) {
           margin-top: 8px; transition: all 150ms var(--ease);
         }
         .editor__add:hover { color: var(--text); border-color: var(--text-muted); background: var(--surface); }
+
+        /* ── Right: tab bar + canvas/inspector ── */
+        .editor__right {
+          display: flex; flex-direction: column;
+          min-height: 0; overflow: hidden;
+          grid-row: 1;
+        }
         .editor__canvas {
           padding: 40px; overflow-y: auto;
           display: flex; flex-direction: column; align-items: center;
+          flex: 1;
         }
         .editor__inspector {
-          border-left: 1px solid var(--border);
           background: var(--bg-2); padding: 20px; overflow-y: auto;
+          flex: 1;
         }
+
+        /* ── Question list item actions ── */
         .q-list-item__actions {
           display: flex; gap: 1px; flex-shrink: 0;
           opacity: 0; transition: opacity 120ms var(--ease);
         }
         .q-list-item:hover .q-list-item__actions { opacity: 1; }
+
+        /* ── Panel visibility ── */
+        .editor__panel--hidden { display: none !important; }
+
+        /* ── Mobile (<= 768px) ── */
+        @media (max-width: 768px) {
+          .editor { height: 100svh; }
+
+          /* Topbar compact */
+          .editor__topbar { padding: 8px 12px; gap: 8px; }
+          .editor__topbar input { min-width: 0; font-size: 15px; }
+          .editor__topbar-action--desktop { display: none; }
+
+          /* Stack body vertically */
+          .editor__body { display: flex; flex-direction: column; overflow: hidden; }
+
+          /* Show mobile tab bar, hide desktop tab bar */
+          .editor__tab-bar--mobile { display: flex; flex-shrink: 0; }
+          .editor__tab-bar--desktop { display: none; }
+
+          /* Mobile tab style: icon stacked over label */
+          .editor__tab {
+            flex: 1; flex-direction: column; justify-content: center;
+            height: auto; gap: 3px; padding: 9px 4px;
+            font-size: 10px; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.04em;
+            border-bottom-width: 2px;
+          }
+
+          /* Panels fill remaining height */
+          .editor__list { border-right: none; flex: 1; }
+          .editor__right { flex: 1; }
+          .editor__canvas { padding: 16px; align-items: stretch; }
+          .editor__inspector { padding: 16px; }
+
+          /* Hide sections by active tab on mobile */
+          .editor__list--mobile-hide { display: none !important; }
+          .editor__right--mobile-hide { display: none !important; }
+
+          /* Touch: always show question actions */
+          .q-list-item__actions { opacity: 1 !important; }
+        }
       `}</style>
 
       {importOpen && (
@@ -414,8 +555,8 @@ function Editor({ onNav }) {
           <div className="modal" style={{ width: 560 }}>
             <div style={{ padding: '20px 24px 0', borderBottom: '1px solid var(--border)', paddingBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
-                <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em' }}>Import questions</div>
-                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>Paste questions in text format below</div>
+                <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em' }}>{t('edit.import_title')}</div>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{t('edit.import_sub')}</div>
               </div>
               <button className="btn btn--ghost btn--icon" onClick={() => setImportOpen(false)}><Icon name="x" size={16} /></button>
             </div>
@@ -428,7 +569,7 @@ function Editor({ onNav }) {
                 {'Q: Question text\nA: Wrong option\nA: *Correct option\nA: Wrong option\n---\nQ: Next question\n...'}
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-faint)', marginBottom: 10 }}>
-                Separate questions with a blank line or <code style={{ fontFamily: 'inherit', background: 'var(--bg-2)', padding: '0 4px', borderRadius: 4 }}>---</code>. Mark correct answer with <code style={{ fontFamily: 'inherit', background: 'var(--bg-2)', padding: '0 4px', borderRadius: 4 }}>*</code> before or after option text.
+                {t('edit.import_hint')}
               </div>
               <textarea
                 value={importText}
@@ -444,9 +585,9 @@ function Editor({ onNav }) {
               />
             </div>
             <div style={{ padding: '0 24px 20px', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button className="btn btn--secondary" onClick={() => setImportOpen(false)}>Cancel</button>
+              <button className="btn btn--secondary" onClick={() => setImportOpen(false)}>{t('edit.cancel')}</button>
               <button className="btn btn--primary" onClick={doImport} disabled={importing || !importText.trim()}>
-                {importing ? 'Importing…' : <><Icon name="import" size={14} /> Import</>}
+                {importing ? t('edit.importing') : <><Icon name="import" size={14} /> {t('edit.import_btn')}</>}
               </button>
             </div>
           </div>
@@ -512,10 +653,10 @@ function AddQuestionMenu({ onAdd }) {
     return () => window.removeEventListener('mousedown', fn);
   }, []);
   const types = [
-    { id: 'single',    label: 'Single choice', desc: 'One correct answer',     icon: 'radio' },
-    { id: 'truefalse', label: 'True / False',  desc: 'Binary question',        icon: 'flag'  },
-    { id: 'multi',     label: 'Multi choice',  desc: 'Multiple correct answers', icon: 'check' },
-    { id: 'open',      label: 'Open answer',   desc: 'Free-text response',     icon: 'type'  },
+    { id: 'single',    label: t('edit.type_single'), desc: t('edit.desc_single'), icon: 'radio' },
+    { id: 'truefalse', label: t('edit.type_tf'),     desc: t('edit.desc_binary'), icon: 'flag'  },
+    { id: 'multi',     label: t('edit.type_multi'),  desc: t('edit.desc_multi'),  icon: 'check' },
+    { id: 'open',      label: t('edit.type_open'),   desc: t('edit.desc_free'),   icon: 'type'  },
   ];
   return (
     <div ref={ref} style={{ position: 'relative' }}>
@@ -557,7 +698,7 @@ function AddQuestionMenu({ onAdd }) {
 }
 
 function QuestionListItem({ question, index, active, onClick, onDuplicate, onDelete, onMoveUp, onMoveDown }) {
-  const typeLabels = { single: 'Single', multi: 'Multi', truefalse: 'T/F', open: 'Open' };
+  const typeLabels = { single: t('edit.lbl_single'), multi: t('edit.lbl_multi'), truefalse: t('edit.lbl_tf'), open: t('edit.lbl_open') };
   const hasText     = !!(question.prompt?.trim());
   const hasCorrect  = question.type === 'open' ? true : (question.options || []).some(o => o.correct);
   const dotColor    = !hasText ? 'var(--border-strong)'
@@ -585,7 +726,7 @@ function QuestionListItem({ question, index, active, onClick, onDuplicate, onDel
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, lineHeight: 1.35, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {question.prompt || <span style={{ color: 'var(--text-faint)' }}>Untitled question</span>}
+          {question.prompt || <span style={{ color: 'var(--text-faint)' }}>{t('edit.untitled_q')}</span>}
         </div>
         <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 3, display: 'flex', gap: 6, alignItems: 'center' }}>
           <span style={{ width: 5, height: 5, borderRadius: 99, flexShrink: 0, background: dotColor }} />
@@ -618,14 +759,13 @@ function QuestionListItem({ question, index, active, onClick, onDuplicate, onDel
   );
 }
 
-const QUESTION_TYPES = [
-  { id: 'single',    label: 'Single',     icon: 'radio' },
-  { id: 'multi',     label: 'Multi',      icon: 'check' },
-  { id: 'truefalse', label: 'True/False', icon: 'flag'  },
-  { id: 'open',      label: 'Open',       icon: 'type'  },
-];
-
 function QuestionEditor({ question, index, total, onChange, quizId }) {
+  const QUESTION_TYPES = [
+    { id: 'single',    label: t('edit.lbl_single'), icon: 'radio' },
+    { id: 'multi',     label: t('edit.lbl_multi'),  icon: 'check' },
+    { id: 'truefalse', label: t('edit.lbl_tf'),     icon: 'flag'  },
+    { id: 'open',      label: t('edit.lbl_open'),   icon: 'type'  },
+  ];
   const fileRef       = useRef(null);
   const textareaRef   = useRef(null);
   const [uploading, setUploading]   = useState(false);
@@ -667,7 +807,7 @@ function QuestionEditor({ question, index, total, onChange, quizId }) {
 
   const handleImageFile = (file) => {
     if (!file || !file.type.startsWith('image/')) return;
-    if (file.size > 10 * 1024 * 1024) { showToast('Image must be under 10 MB', 'error'); return; }
+    if (file.size > 10 * 1024 * 1024) { showToast(t('edit.img_size'), 'error'); return; }
     if (!quizId || !question.id) return;
     const fd = new FormData();
     fd.append('image', file);
@@ -708,7 +848,7 @@ function QuestionEditor({ question, index, total, onChange, quizId }) {
         ref={textareaRef}
         value={question.prompt}
         onChange={e => onChange({ prompt: e.target.value })}
-        placeholder="What's your question?"
+        placeholder={t('edit.q_placeholder')}
         rows={2}
         style={{
           width: '100%', fontSize: 28, fontWeight: 600,
@@ -725,7 +865,7 @@ function QuestionEditor({ question, index, total, onChange, quizId }) {
           style={{ gap: 8, color: hasImage ? 'var(--text)' : 'var(--text-muted)' }}
         >
           <Icon name="image" size={13} />
-          {hasImage ? 'Image attached' : 'Add image'}
+          {hasImage ? t('edit.img_attached') : t('edit.add_image')}
           {hasImage && <span style={{ width: 6, height: 6, borderRadius: 99, background: 'oklch(65% 0.15 145)' }} />}
           <Icon name="chevronDown" size={12} style={{ transform: imageOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 150ms' }} />
         </button>
@@ -750,20 +890,20 @@ function QuestionEditor({ question, index, total, onChange, quizId }) {
                   <img src={question.imageUrl} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
                   <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 6, zIndex: 2 }}>
                     <button className="btn btn--sm" style={{ background: 'oklch(100% 0 0 / 0.9)', color: 'oklch(15% 0 0)', fontSize: 11 }}
-                      onClick={e => { e.stopPropagation(); fileRef.current?.click(); }}>Replace</button>
+                      onClick={e => { e.stopPropagation(); fileRef.current?.click(); }}>{t('edit.img_replace')}</button>
                     <button className="btn btn--sm" style={{ background: 'oklch(100% 0 0 / 0.9)', color: 'oklch(45% 0.18 25)', fontSize: 11 }}
-                      onClick={e => { e.stopPropagation(); onChange({ imageUrl: '' }); }}>Remove</button>
+                      onClick={e => { e.stopPropagation(); onChange({ imageUrl: '' }); }}>{t('edit.img_remove')}</button>
                   </div>
                 </>
               ) : (
                 <div style={{ textAlign: 'center', color: 'var(--text-faint)', pointerEvents: 'none' }}>
                   {uploading ? (
-                    <div style={{ fontSize: 13, fontWeight: 500 }}>Uploading…</div>
+                    <div style={{ fontSize: 13, fontWeight: 500 }}>{t('edit.uploading')}</div>
                   ) : (
                     <>
                       <Icon name="image" size={28} />
-                      <div style={{ fontSize: 13, marginTop: 8, fontWeight: 500 }}>Click or drop an image</div>
-                      <div style={{ fontSize: 12, marginTop: 2 }}>JPG, PNG · up to 10 MB</div>
+                      <div style={{ fontSize: 13, marginTop: 8, fontWeight: 500 }}>{t('edit.click_drop')}</div>
+                      <div style={{ fontSize: 12, marginTop: 2 }}>{t('edit.img_formats')}</div>
                     </>
                   )}
                 </div>
@@ -780,7 +920,7 @@ function QuestionEditor({ question, index, total, onChange, quizId }) {
               }}>URL</span>
               <input
                 className="input"
-                placeholder="or paste an image URL (https://...)"
+                placeholder={t('edit.img_url_ph')}
                 value={question.imageUrl || ''}
                 onChange={e => onChange({ imageUrl: e.target.value })}
                 style={{ paddingLeft: 52, fontSize: 13 }}
@@ -795,15 +935,15 @@ function QuestionEditor({ question, index, total, onChange, quizId }) {
       )}
       {question.type === 'open' && (
         <div style={{ marginTop: 16 }}>
-          <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Expected answer</label>
+          <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('edit.expected')}</label>
           <input
             className="input input--lg" style={{ marginTop: 8 }}
             value={question.answer || ''}
             onChange={e => onChange({ answer: e.target.value })}
-            placeholder="Type the correct answer..."
+            placeholder={t('edit.type_correct')}
           />
           <p style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 8 }}>
-            Player answers are auto-matched with fuzzy logic. You can review uncertain ones after the session.
+            {t('edit.fuzzy_hint')}
           </p>
         </div>
       )}
@@ -838,7 +978,7 @@ function OptionsEditor({ question, onChange }) {
   return (
     <div>
       <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12, display: 'block' }}>
-        {question.type === 'multi' ? 'Choose all correct answers' : 'Choose the correct answer'}
+        {question.type === 'multi' ? t('edit.choose_all') : t('edit.choose_one')}
       </label>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {question.options.map((opt, i) => (
@@ -868,7 +1008,7 @@ function OptionsEditor({ question, onChange }) {
               ref={el => optRefs.current[i] = el}
               value={opt.text}
               onChange={e => updateOption(opt.id, { text: e.target.value })}
-              placeholder={`Option ${String.fromCharCode(65 + i)}`}
+              placeholder={t('edit.option_ph') + ' ' + String.fromCharCode(65 + i)}
               disabled={question.type === 'truefalse'}
               style={{ flex: 1, fontSize: 15, padding: 0, opacity: question.type === 'truefalse' ? 0.7 : 1 }}
               onKeyDown={e => {
@@ -889,7 +1029,7 @@ function OptionsEditor({ question, onChange }) {
       </div>
       {question.type !== 'truefalse' && question.options.length < 6 && (
         <button onClick={() => addOption()} className="btn btn--ghost btn--sm" style={{ marginTop: 10 }}>
-          <Icon name="plus" size={14} /> Add option
+          <Icon name="plus" size={14} /> {t('edit.add_option')}
         </button>
       )}
     </div>
@@ -901,14 +1041,14 @@ function Inspector({ question, onChange, description, onDescription }) {
     <div>
       {/* Quiz settings */}
       <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 14 }}>
-        Quiz
+        {t('edit.section_quiz')}
       </div>
-      <Field label="Description">
+      <Field label={t('edit.description')}>
         <textarea
           className="input"
           value={description}
           onChange={e => onDescription(e.target.value)}
-          placeholder="Short description shown on quiz cards…"
+          placeholder={t('edit.desc_ph')}
           rows={3}
           style={{ fontSize: 13, resize: 'vertical', lineHeight: 1.5, width: '100%' }}
         />
@@ -918,12 +1058,12 @@ function Inspector({ question, onChange, description, onDescription }) {
 
       {/* Question settings */}
       <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 16 }}>
-        Question
+        {t('edit.section_q')}
       </div>
 
       {question ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          <Field label="Time limit" hint="seconds">
+          <Field label={t('edit.time_limit')} hint={t('edit.seconds')}>
             <div style={{ display: 'flex', gap: 6 }}>
               {[10, 20, 30, 45, 60].map(t => (
                 <button
@@ -956,7 +1096,7 @@ function Inspector({ question, onChange, description, onDescription }) {
             </div>
           </Field>
 
-          <Field label="Points" hint="per correct">
+          <Field label={t('edit.points')} hint={t('edit.per_correct')}>
             <div style={{ display: 'flex', gap: 6 }}>
               {[50, 100, 150, 200].map(p => (
                 <button
@@ -975,16 +1115,16 @@ function Inspector({ question, onChange, description, onDescription }) {
             </div>
           </Field>
 
-          <Field label="Shuffle options">
+          <Field label={t('edit.shuffle')}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Randomize order per player</span>
+              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{t('edit.shuffle_hint')}</span>
               <Toggle on={question.shuffleOptions || false} onChange={v => onChange({ shuffleOptions: v })} />
             </div>
           </Field>
         </div>
       ) : (
         <div style={{ fontSize: 13, color: 'var(--text-faint)', textAlign: 'center', paddingTop: 12 }}>
-          Select a question to edit its settings
+          {t('edit.select_q')}
         </div>
       )}
     </div>
