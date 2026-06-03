@@ -26,55 +26,6 @@ function _playAnswerSound(correct) {
   } catch {}
 }
 
-function _launchConfetti() {
-  const canvas = document.createElement('canvas');
-  Object.assign(canvas.style, {
-    position: 'fixed', top: '0', left: '0',
-    width: '100%', height: '100%',
-    pointerEvents: 'none', zIndex: '9999',
-  });
-  document.body.appendChild(canvas);
-  canvas.width  = window.innerWidth;
-  canvas.height = window.innerHeight;
-  const ctx = canvas.getContext('2d');
-  const colors = ['#f87171','#fb923c','#fbbf24','#4ade80','#34d399','#60a5fa','#a78bfa','#f472b6'];
-  const particles = Array.from({ length: 180 }, () => ({
-    x: Math.random() * canvas.width,
-    y: -20 - Math.random() * canvas.height * 0.4,
-    w: 6 + Math.random() * 10,
-    h: 4 + Math.random() * 6,
-    color: colors[Math.floor(Math.random() * colors.length)],
-    vx: (Math.random() - 0.5) * 3.5,
-    vy: 1.5 + Math.random() * 4,
-    angle: Math.random() * Math.PI * 2,
-    spin: (Math.random() - 0.5) * 0.18,
-    wobble: Math.random() * Math.PI * 2,
-  }));
-  let raf;
-  const tick = () => {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    let alive = false;
-    for (const p of particles) {
-      p.x += p.vx;
-      p.y += p.vy;
-      p.vy += 0.055;
-      p.angle += p.spin;
-      p.wobble += 0.06;
-      p.vx += Math.sin(p.wobble) * 0.04;
-      if (p.y < canvas.height + 30) alive = true;
-      ctx.save();
-      ctx.translate(p.x, p.y);
-      ctx.rotate(p.angle);
-      ctx.fillStyle = p.color;
-      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
-      ctx.restore();
-    }
-    if (alive) raf = requestAnimationFrame(tick);
-    else canvas.remove();
-  };
-  raf = requestAnimationFrame(tick);
-  setTimeout(() => { cancelAnimationFrame(raf); canvas.remove(); }, 6000);
-}
 
 function Player({ onNav }) {
   window.useLang();
@@ -325,6 +276,7 @@ function PlayerGame({ questions, quizTitle, quizId, onNav, onPlayAgain }) {
     return (
       <PlayerResult
         scores={scores}
+        questions={questions}
         total={questions.length}
         quizTitle={quizTitle}
         quizId={quizId}
@@ -337,7 +289,7 @@ function PlayerGame({ questions, quizTitle, quizId, onNav, onPlayAgain }) {
   const progressPct = ((idx + (phase !== 'question' ? 1 : 0)) / questions.length) * 100;
 
   return (
-    <div className="player fade-in" data-screen-label="04 Player">
+    <div className="player fade-in" {...screenLabel('04 Player')}>
       <div className="player__header">
         <button className="btn btn--ghost btn--icon" onClick={() => onNav('dashboard')}>
           <Icon name="x" size={18} />
@@ -383,8 +335,8 @@ function PlayerGame({ questions, quizTitle, quizId, onNav, onPlayAgain }) {
           </div>
 
           {current.imageUrl && (
-            <div style={{ marginBottom: 24, borderRadius: 'var(--r-lg)', overflow: 'hidden', maxHeight: 240 }}>
-              <img src={current.imageUrl} alt="" style={{ width: '100%', objectFit: 'cover', display: 'block' }} />
+            <div style={{ marginBottom: 24, borderRadius: 'var(--r-lg)', overflow: 'hidden', height: 220, position: 'relative' }}>
+              <div style={window.applyImageTransform(current.imageUrl, current.imageTransform, 16 / 9)} />
             </div>
           )}
 
@@ -690,15 +642,16 @@ function OpenAnswer({ value, onChange, phase, expected, correct }) {
   );
 }
 
-function PlayerResult({ scores, total, quizTitle, quizId, onExit, onPlayAgain }) {
+function PlayerResult({ scores, questions, total, quizTitle, quizId, onExit, onPlayAgain }) {
   const correct    = scores.filter(s => s.correct).length;
   const totalPoints = scores.reduce((s, x) => s + x.award, 0);
   const pct        = Math.round((correct / total) * 100);
-  const [creditInfo, setCreditInfo] = useState(null); // null = loading
+  const [creditInfo, setCreditInfo] = useState(null);
+  const [showReview, setShowReview] = useState(false);
 
   useEffect(() => {
     const prefs = JSON.parse(localStorage.getItem('quiz:prefs') || '{}');
-    if (prefs.confetti !== false && pct >= 70) _launchConfetti();
+    if (prefs.confetti !== false && pct >= 70) window.launchConfetti();
   }, []);
 
   useEffect(() => {
@@ -718,7 +671,7 @@ function PlayerResult({ scores, total, quizTitle, quizId, onExit, onPlayAgain })
   const isOwnQuiz      = creditInfo && !alreadyRewarded && creditsEarned === 0 && correct > 0;
 
   return (
-    <div className="player fade-in" data-screen-label="04b Player result">
+    <div className="player fade-in" {...screenLabel('04b Player result')}>
       <style>{`
         .player { height: 100vh; display: flex; flex-direction: column; background: var(--bg); }
         .player__header {
@@ -807,20 +760,81 @@ function PlayerResult({ scores, total, quizTitle, quizId, onExit, onPlayAgain })
             </div>
           ) : null}
 
-          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 36, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 36, flexWrap: 'wrap' }}>
             {scores.map((s, i) => (
-              <div key={i} style={{
-                width: 32, height: 32, borderRadius: 8,
+              <div key={i} title={`Q${i + 1}`} style={{
+                width: 28, height: 28, borderRadius: 6,
                 background: s.correct ? 'var(--accent)' : 'oklch(90% 0.04 30)',
                 color: s.correct ? 'var(--accent-fg)' : 'oklch(50% 0.10 30)',
                 display: 'grid', placeItems: 'center',
-                fontSize: 12, fontWeight: 600,
-                fontFamily: 'JetBrains Mono',
+                fontSize: 11, fontWeight: 600, fontFamily: 'JetBrains Mono',
               }}>{i + 1}</div>
             ))}
           </div>
 
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 40 }}>
+          <button
+            className="btn btn--ghost"
+            style={{ marginTop: 20 }}
+            onClick={() => setShowReview(r => !r)}
+          >
+            {showReview ? t('play.hide_review') : t('play.review')}
+            <Icon name={showReview ? 'chevronUp' : 'chevronDown'} size={14} />
+          </button>
+
+          {showReview && questions && (
+            <div style={{ marginTop: 8, width: '100%', textAlign: 'left', borderRadius: 'var(--r-lg)', overflow: 'hidden', border: '1px solid var(--border)' }}>
+              {questions.map((q, i) => {
+                const s = scores[i];
+                const ok = s?.correct;
+                let correctText = '';
+                if (q.type === 'open') correctText = q.answer || '';
+                else if (q.type === 'single' || q.type === 'truefalse') correctText = (q.options || []).find(o => o.correct)?.text || '';
+                else if (q.type === 'multi') correctText = (q.options || []).filter(o => o.correct).map(o => o.text).join(', ');
+                return (
+                  <div key={q.id} style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 12,
+                    padding: '12px 16px',
+                    borderBottom: i < questions.length - 1 ? '1px solid var(--border)' : 'none',
+                    background: ok ? 'var(--surface)' : 'oklch(98% 0.01 30)',
+                  }}>
+                    <div style={{
+                      width: 26, height: 26, borderRadius: 6, flexShrink: 0,
+                      background: ok ? 'var(--accent)' : 'oklch(88% 0.06 30)',
+                      color: ok ? 'var(--accent-fg)' : 'oklch(45% 0.14 30)',
+                      display: 'grid', placeItems: 'center',
+                      fontSize: 11, fontWeight: 700, fontFamily: 'JetBrains Mono',
+                    }}>{i + 1}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.35 }}>{q.prompt}</div>
+                      {!ok && correctText && (
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>
+                          {t('play.expected')} <span style={{ color: 'var(--text)', fontWeight: 600 }}>{correctText}</span>
+                        </div>
+                      )}
+                      {q.explanation && (
+                        <div style={{
+                          marginTop: 6, padding: '5px 9px',
+                          borderRadius: 6,
+                          background: 'var(--bg-2)',
+                          border: '1px solid var(--border)',
+                          fontSize: 12, color: 'var(--text)',
+                          lineHeight: 1.5,
+                          display: 'flex', gap: 7, alignItems: 'flex-start',
+                        }}>
+                          <Icon name="sparkle" size={11} style={{ color: 'var(--accent)', flexShrink: 0, marginTop: 1 }} />
+                          <span>{q.explanation}</span>
+                        </div>
+                      )}
+                    </div>
+                    <Icon name={ok ? 'check' : 'x'} size={16} strokeWidth={2.5}
+                      style={{ color: ok ? 'var(--accent-strong)' : 'oklch(55% 0.18 25)', flexShrink: 0, marginTop: 4 }} />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 28 }}>
             <button className="btn btn--secondary btn--lg" onClick={onExit}>{t('play.back_dash')}</button>
             <button className="btn btn--primary btn--lg" onClick={onPlayAgain}>
               {t('play.play_again')} <Icon name="arrowRight" size={14} />

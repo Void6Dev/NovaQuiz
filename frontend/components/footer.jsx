@@ -5,7 +5,7 @@ function SiteFooter({ variant = 'full' }) {
   if (variant === 'compact') {
     return (
       <footer className="site-footer site-footer--compact mono">
-        © 2026 Quiz, Inc. · <a>Privacy</a> · <a>Terms</a>
+        © 2026 NovaQuiz · <a>Privacy</a> · <a>Terms</a>
       </footer>
     );
   }
@@ -17,7 +17,7 @@ function SiteFooter({ variant = 'full' }) {
             <NQLogo size={24} />
             <span>Nova<span style={{ color: 'var(--accent)' }}>Quiz</span></span>
           </div>
-          <p className="site-footer__tag">A premium-grade quiz studio. Crafted in OKLCH.</p>
+          <p className="site-footer__tag">Build, host, and analyse quizzes your players will love.</p>
         </div>
         <div className="site-footer__cols">
           <FooterCol title="Product" links={['Editor', 'Live mode', 'Analytics', 'Templates', 'Changelog']} />
@@ -27,7 +27,7 @@ function SiteFooter({ variant = 'full' }) {
         </div>
       </div>
       <div className="site-footer__bottom">
-        <span className="mono" style={{ fontSize: 12, color: 'var(--text-faint)' }}>© 2026 Quiz, Inc.</span>
+        <span className="mono" style={{ fontSize: 12, color: 'var(--text-faint)' }}>© 2026 NovaQuiz</span>
         <div style={{ display: 'flex', gap: 24, fontSize: 13, color: 'var(--text-muted)' }}>
           <a>Twitter</a><a>GitHub</a><a>RSS</a>
         </div>
@@ -65,6 +65,14 @@ function SiteFooter({ variant = 'full' }) {
         .site-footer__bottom a { cursor: pointer; transition: color 120ms; }
         .site-footer__bottom a:hover { color: var(--text); }
 
+        .footer-col__title {
+          font-size: 11px; font-weight: 600; color: var(--text);
+          text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 14px;
+        }
+        .footer-col__links { display: flex; flex-direction: column; gap: 9px; }
+        .footer-col__links a { font-size: 13px; color: var(--text-muted); cursor: pointer; transition: color 120ms; }
+        .footer-col__links a:hover { color: var(--text); }
+
         .site-footer--compact {
           padding: 18px 40px;
           font-size: 11px;
@@ -85,16 +93,10 @@ function SiteFooter({ variant = 'full' }) {
 
 function FooterCol({ title, links }) {
   return (
-    <div>
-      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14 }}>{title}</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-        {links.map(l => (
-          <a key={l} style={{ fontSize: 13, color: 'var(--text-muted)', cursor: 'pointer', transition: 'color 120ms' }}
-             onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
-             onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
-            {l}
-          </a>
-        ))}
+    <div className="footer-col">
+      <div className="footer-col__title">{title}</div>
+      <div className="footer-col__links">
+        {links.map(l => <a key={l}>{l}</a>)}
       </div>
     </div>
   );

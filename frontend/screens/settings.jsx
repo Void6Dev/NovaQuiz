@@ -8,6 +8,25 @@ function Settings({ theme, onTheme, onLogout }) {
   window.useLang(); // re-render on language change
 
   const [section, setSection] = useState('profile');
+  const navRef    = useRef(null);
+  const [navInd, setNavInd]         = React.useState(null);
+  const [navIndAnim, setNavIndAnim] = React.useState(false);
+
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const active = nav.querySelector('.nav-item--active');
+    if (!active) return;
+    const nr = nav.getBoundingClientRect();
+    const ar = active.getBoundingClientRect();
+    setNavInd({ top: ar.top - nr.top, height: ar.height });
+  }, [section]);
+  useEffect(() => {
+    if (navInd && !navIndAnim) {
+      const id = requestAnimationFrame(() => setNavIndAnim(true));
+      return () => cancelAnimationFrame(id);
+    }
+  }, [navInd, navIndAnim]);
   const sections = [
     { id: 'profile',       label: t('settings.profile'),       icon: 'user'     },
     { id: 'appearance',    label: t('settings.appearance'),    icon: 'sun'      },
@@ -18,21 +37,46 @@ function Settings({ theme, onTheme, onLogout }) {
   ];
 
   return (
-    <div className="page fade-in" data-screen-label="07 Settings" style={{ maxWidth: 1100 }}>
+    <div className="page fade-in" {...screenLabel('07 Settings')} style={{ maxWidth: 1100 }}>
       <PageHeader title={t('settings.title')} subtitle={t('settings.subtitle')} />
 
       <div className="settings-layout">
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <nav className="settings-nav" ref={navRef} style={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative' }}>
+          {navInd && (
+            <div
+              className={`settings-nav__indicator${navIndAnim ? ' settings-nav__indicator--anim' : ''}`}
+              style={{ top: navInd.top, height: navInd.height }}
+            />
+          )}
           {sections.map(s => (
             <a
               key={s.id}
               className={`nav-item ${section === s.id ? 'nav-item--active' : ''}`}
               onClick={() => setSection(s.id)}
-              style={{ cursor: 'pointer' }}
+              style={{ cursor: 'pointer', position: 'relative', zIndex: 1 }}
             >
               <Icon name={s.icon} size={16} /> <span>{s.label}</span>
             </a>
           ))}
+          <style>{`
+            .settings-nav__indicator {
+              position: absolute;
+              left: 0; right: 0;
+              background: var(--surface);
+              border-radius: var(--r-md);
+              box-shadow: var(--shadow-sm);
+              pointer-events: none;
+              z-index: 0;
+            }
+            .settings-nav__indicator--anim {
+              transition: top 240ms var(--ease), height 240ms var(--ease);
+            }
+            .reduce-motion .settings-nav__indicator { transition: none; }
+            .settings-nav .nav-item--active {
+              background: transparent;
+              box-shadow: none;
+            }
+          `}</style>
         </nav>
 
         <div>
@@ -114,7 +158,9 @@ function ProfileSettings({ onLogout }) {
   const [email, setEmail]             = useState(u.email || '');
   const [description, setDescription] = useState(u.description || '');
   const [birthday, setBirthday]       = useState(u.birthday || '');
-  const [avatar, setAvatar]           = useState(u.avatar || null);
+  const [avatar, setAvatar]                 = useState(u.avatar || null);
+  const [avatarTransform, setAvatarTransform] = useState(() => window.API.parseTransform(u.avatar_transform));
+  const [avatarCropOpen, setAvatarCropOpen] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
 
   const [saving, setSaving]     = useState(false);
@@ -141,6 +187,7 @@ function ProfileSettings({ onLogout }) {
         setDescription(data.description || '');
         setBirthday(data.birthday || '');
         setAvatar(data.avatar || null);
+        setAvatarTransform(window.API.parseTransform(data.avatar_transform));
         window.API.saveUser({ ...u, ...data });
       })
       .catch(() => {})
@@ -188,8 +235,9 @@ function ProfileSettings({ onLogout }) {
     window.API.upload('/auth/avatar/', fd)
       .then(data => {
         setAvatar(data.avatar);
-        window.API.saveUser({ ...window.CURRENT_USER, avatar: data.avatar });
-        showToast(t('profile.avatar_updated'), 'success');
+        setAvatarTransform(null);
+        window.API.saveUser({ ...window.CURRENT_USER, avatar: data.avatar, avatar_transform: '' });
+        setAvatarCropOpen(true);
       })
       .catch(err => showToast(err.message, 'error'));
     e.target.value = '';
@@ -218,10 +266,13 @@ function ProfileSettings({ onLogout }) {
       <SettingsSection title={t('profile.account')}>
         <div className="card" style={{ padding: 24, display: 'flex', alignItems: 'center', gap: 20, marginBottom: 0 }}>
           <div style={{ position: 'relative', flexShrink: 0 }}>
-            {avatar
-              ? <img src={avatar} alt="" style={{ width: 68, height: 68, borderRadius: 999, objectFit: 'cover', border: '2px solid var(--border)' }} />
-              : <div className="avatar" style={{ width: 68, height: 68, fontSize: 22, borderRadius: 999, background: 'var(--accent)', color: 'var(--accent-fg)', display: 'grid', placeItems: 'center', fontWeight: 700 }}>{initials}</div>
-            }
+            {avatar ? (
+              <div style={{ width: 68, height: 68, borderRadius: 999, overflow: 'hidden', border: '2px solid var(--border)', position: 'relative', flexShrink: 0 }}>
+                <div style={window.applyImageTransform(avatar, avatarTransform, 1)} />
+              </div>
+            ) : (
+              <div className="avatar" style={{ width: 68, height: 68, fontSize: 22, borderRadius: 999, background: 'var(--accent)', color: 'var(--accent-fg)', display: 'grid', placeItems: 'center', fontWeight: 700 }}>{initials}</div>
+            )}
             <button
               onClick={() => avatarInputRef.current?.click()}
               title="Change avatar"
@@ -235,14 +286,48 @@ function ProfileSettings({ onLogout }) {
             >
               <Icon name="edit" size={10} strokeWidth={2.5} />
             </button>
+            {avatar && (
+              <button
+                onClick={() => setAvatarCropOpen(true)}
+                title={t('ui.crop_title')}
+                style={{
+                  position: 'absolute', bottom: -2, right: 22,
+                  width: 22, height: 22, borderRadius: 999,
+                  background: 'var(--surface)', color: 'var(--text-muted)',
+                  display: 'grid', placeItems: 'center',
+                  border: '2px solid var(--bg)', cursor: 'pointer',
+                }}
+              >
+                <Icon name="crop" size={10} />
+              </button>
+            )}
             <input ref={avatarInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={uploadAvatar} />
           </div>
+          {avatarCropOpen && avatar && (
+            <ImageCropModal
+              imageUrl={avatar}
+              transform={avatarTransform}
+              aspectRatio={1}
+              shape="circle"
+              onSave={newTr => {
+                setAvatarTransform(newTr);
+                setAvatarCropOpen(false);
+                window.API.post('/auth/avatar/transform/', { transform: JSON.stringify(newTr) })
+                  .then(() => {
+                    window.API.saveUser({ ...window.CURRENT_USER, avatar_transform: JSON.stringify(newTr) });
+                    showToast(t('profile.avatar_updated'), 'success');
+                  })
+                  .catch(() => {});
+              }}
+              onClose={() => setAvatarCropOpen(false)}
+            />
+          )}
 
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
               <div style={{ fontSize: 17, fontWeight: 600 }}>{name || u.username}</div>
               {(window.CURRENT_USER.permission === 'moderator') && (
-                <span className="pill" style={{ background: 'oklch(80% 0.14 220)', color: 'oklch(25% 0.06 220)', borderColor: 'transparent', fontWeight: 700, fontSize: 10 }}>
+                <span className="pill" style={{ background: 'var(--mod)', color: 'var(--mod-fg)', borderColor: 'transparent', fontWeight: 700, fontSize: 10 }}>
                   {t('profile.moderator')}
                 </span>
               )}

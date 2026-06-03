@@ -20,43 +20,30 @@ function Sidebar({ current, onLogout }) {
   ];
 
   return (
-    <aside className="sidebar" data-screen-label="Sidebar">
-      <div className="sidebar__logo">
-        <NQLogo size={28} />
-        <span>Nova<span style={{ color: 'var(--accent)' }}>Quiz</span></span>
-        <span className="pill" style={{ marginLeft: 'auto', fontSize: 10, padding: '2px 7px' }}>v2.4</span>
+    <aside className="sidebar" {...screenLabel('Sidebar')}>
+      <div className="sidebar__logo" style={{ marginBottom: 4 }}>
+        <NQLogo size={30} />
+        <span style={{ fontSize: 16, letterSpacing: '-0.03em' }}>
+          Nova<span style={{ color: 'var(--accent-strong)' }}>Quiz</span>
+        </span>
       </div>
 
       <button
         className="btn btn--accent"
-        style={{ marginBottom: 8, justifyContent: 'flex-start', padding: '10px 12px' }}
+        style={{ marginBottom: 8, width: '100%', justifyContent: 'flex-start', padding: '9px 12px', fontSize: 13 }}
         onClick={() => nav('editor', { newQuiz: 1 })}
       >
-        <Icon name="plus" size={16} />
+        <Icon name="plus" size={15} />
         {t('nav.new_quiz')}
       </button>
 
       <button
-        style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          width: '100%', padding: '8px 10px', marginBottom: 12,
-          borderRadius: 'var(--r-md)', border: '1px solid var(--border)',
-          background: 'var(--surface)', cursor: 'pointer',
-          color: 'var(--text-faint)', fontSize: 13,
-          transition: 'border-color 150ms, color 150ms',
-        }}
-        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
-        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-faint)'; }}
+        className="sidebar__search"
         onClick={() => window.dispatchEvent(new CustomEvent('open-command-palette'))}
       >
         <Icon name="search" size={13} />
-        <span style={{ flex: 1, textAlign: 'left' }}>{t('nav.search')}</span>
-        <kbd style={{
-          padding: '1px 5px', borderRadius: 4,
-          fontSize: 10, fontFamily: 'JetBrains Mono, monospace', fontWeight: 600,
-          background: 'var(--bg-2)', border: '1px solid var(--border)',
-          color: 'var(--text-faint)', flexShrink: 0,
-        }}>{typeof navigator !== 'undefined' && /mac/i.test(navigator.platform) ? '⌘K' : 'Ctrl+K'}</kbd>
+        <span className="sidebar__search__label">{t('nav.search')}</span>
+        <kbd>{typeof navigator !== 'undefined' && /mac/i.test(navigator.platform) ? '⌘K' : 'Ctrl+K'}</kbd>
       </button>
 
       <div className="sidebar__section-label">{t('nav.workspace')}</div>
@@ -73,38 +60,34 @@ function Sidebar({ current, onLogout }) {
         </a>
       ))}
 
-      <div className="sidebar__section-label">{t('nav.library')}</div>
-      <a className="nav-item" href={window.ROUTES.dashboard} onClick={(e) => { e.preventDefault(); nav('dashboard', { tab: 'mine' }); }}>
-        <Icon name="folder" size={17} /> <span>{t('nav.my_quizzes')}</span>
-      </a>
-      <a className="nav-item">
-        <Icon name="star" size={17} /> <span>{t('nav.starred')}</span>
-      </a>
-      <a
-        className={`nav-item ${current === 'shared' ? 'nav-item--active' : ''}`}
-        href="shared.html"
-        onClick={(e) => { e.preventDefault(); window.location.href = 'shared.html'; }}
-      >
-        <Icon name="users" size={17} /> <span>{t('nav.shared')}</span>
-      </a>
-
       <div style={{ flex: 1 }} />
 
+      {/* Credits badge */}
       <div className="credits-card" onClick={() => nav('settings')}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
           <div style={{
-            width: 24, height: 24, borderRadius: 6,
-            background: 'var(--accent)', color: 'var(--accent-fg)',
+            width: 26, height: 26, borderRadius: 7, flexShrink: 0,
+            background: 'linear-gradient(135deg, var(--accent), var(--accent-strong))',
+            color: 'var(--accent-fg)',
             display: 'grid', placeItems: 'center',
+            boxShadow: '0 1px 4px oklch(from var(--accent) l c h / 0.35)',
           }}>
             <Icon name="star" size={13} strokeWidth={2.2} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="mono" style={{ fontSize: 14, fontWeight: 600, letterSpacing: '-0.01em' }}>{u.credits.toLocaleString()}</div>
-            <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>{t('nav.credits')}</div>
+            <div className="mono" style={{ fontSize: 14, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+              {u.credits.toLocaleString()}
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600, marginTop: 1 }}>
+              {t('nav.credits')}
+            </div>
           </div>
+          <Icon name="arrowRight" size={12} style={{ color: 'var(--text-faint)', flexShrink: 0 }} />
         </div>
       </div>
+
+      {/* Bottom divider */}
+      <div style={{ height: 1, background: 'var(--border)', margin: '4px 2px 6px' }} />
 
       {bottom.map(item => (
         <a
@@ -119,20 +102,21 @@ function Sidebar({ current, onLogout }) {
       ))}
 
       <div className="sidebar__user" onClick={() => nav('settings')}>
-        <div className="avatar">{(u.name || u.username || '?').split(' ').map(w => w[0]).join('')}</div>
+        <div className="avatar" style={{
+          background: `linear-gradient(135deg, oklch(75% 0.16 ${(u.username || '').charCodeAt(0) % 360}), oklch(65% 0.18 ${((u.username || '').charCodeAt(0) + 60) % 360}))`,
+        }}>
+          {(u.name || u.username || '?').split(' ').map(w => w[0]).join('')}
+        </div>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name}</div>
-          <div style={{ fontSize: 11, color: 'var(--text-faint)', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '-0.01em' }}>{u.name || u.username}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-faint)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
             <span className="mono">@{u.username}</span>
             {u.permission === 'moderator' && (
-              <span style={{
-                fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 99,
-                background: 'oklch(80% 0.14 220)', color: 'oklch(25% 0.06 220)',
-                textTransform: 'uppercase', letterSpacing: '0.04em',
-              }}>MOD</span>
+              <span className="badge-mod">MOD</span>
             )}
           </div>
         </div>
+        <Icon name="settings" size={13} style={{ color: 'var(--text-faint)', flexShrink: 0 }} />
       </div>
 
       <style>{`
@@ -140,12 +124,26 @@ function Sidebar({ current, onLogout }) {
           margin: 0 4px 8px;
           padding: 10px 12px;
           border-radius: var(--r-md);
-          background: var(--surface);
-          border: 1px solid var(--border);
+          background: linear-gradient(135deg,
+            oklch(from var(--accent) l c h / 0.07) 0%,
+            oklch(from var(--accent) l c h / 0.03) 100%);
+          border: 1px solid oklch(from var(--accent) l c h / 0.20);
           cursor: pointer;
           transition: all 150ms var(--ease);
         }
-        .credits-card:hover { border-color: var(--border-strong); }
+        .credits-card:hover {
+          border-color: oklch(from var(--accent) l c h / 0.40);
+          background: linear-gradient(135deg,
+            oklch(from var(--accent) l c h / 0.12) 0%,
+            oklch(from var(--accent) l c h / 0.06) 100%);
+        }
+        .sidebar__user {
+          transition: background 150ms var(--ease);
+        }
+        .sidebar__user:hover {
+          background: var(--surface);
+          border-radius: var(--r-md);
+        }
       `}</style>
     </aside>
   );

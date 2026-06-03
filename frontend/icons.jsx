@@ -45,6 +45,9 @@ const Icon = ({ name, size = 18, ...rest }) => {
     shuffle: <><path d="M16 3H21V8"/><path d="M4 20L21 3"/><path d="M21 16V21H16"/><path d="M15 15L21 21"/><path d="M4 4L9 9"/></>,
     import: <><path d="M21 15V19A2 2 0 0 1 19 21H5A2 2 0 0 1 3 19V15"/><path d="M7 10L12 15L17 10"/><path d="M12 15V3"/></>,
     globe: <><circle cx="12" cy="12" r="10"/><path d="M2 12H22"/><path d="M12 2C8.5 6 7 9 7 12S8.5 18 12 22"/><path d="M12 2C15.5 6 17 9 17 12S15.5 18 12 22"/></>,
+    lock:   <><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>,
+    unlock: <><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></>,
+    crop:   <><path d="M6 2V17H21"/><path d="M18 22V7H3"/></>,
   };
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" {...rest}>

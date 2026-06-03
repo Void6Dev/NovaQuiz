@@ -9,14 +9,17 @@ def generate_session_code(length=6):
 
 class Session(models.Model):
     host = models.ForeignKey(User, on_delete=models.CASCADE)
-    session = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='sessions')    
+    session = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='sessions')
     created_at = models.DateTimeField(auto_now_add=True)
-    is_active = models.BooleanField(default=True)
-    time_per_question = models.IntegerField(default=30)
-    max_players = models.IntegerField(default=10)
+    time_per_question = models.PositiveSmallIntegerField(default=30)
+    max_players = models.PositiveSmallIntegerField(default=10)
     has_started = models.BooleanField(default=False)
     has_ended = models.BooleanField(default=False)
     code = models.CharField(max_length=10, unique=True, default=generate_session_code)
+
+    @property
+    def is_active(self):
+        return not self.has_ended
     
 
 class SessionPlayer(models.Model):

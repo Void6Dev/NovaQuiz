@@ -2,8 +2,18 @@
 function Analytics({ onNav }) {
   window.useLang();
   const [range, setRange] = useState('7d');
+  const [data, setData]   = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    window.API.get('/analytics/?range=' + range)
+      .then(d => { setData(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [range]);
+
   return (
-    <div className="page fade-in" data-screen-label="06 Analytics">
+    <div className="page fade-in" {...screenLabel('06 Analytics')}>
       <PageHeader title={t('anal.title')} subtitle={t('anal.subtitle')}>
         <div style={{
           display: 'flex', background: 'var(--surface)', borderRadius: 'var(--r-md)',
@@ -24,14 +34,27 @@ function Analytics({ onNav }) {
             >{r}</button>
           ))}
         </div>
-        <button className="btn btn--secondary"><Icon name="share" size={15} /> {t('anal.export')}</button>
       </PageHeader>
 
       <div className="anal-stats-grid">
-        <Stat label={t('anal.sessions')}   value="1,284" delta="+18%" hint={t('anal.last_7d')} />
-        <Stat label={t('anal.completion')} value="91.2%" delta="+2.1%" />
-        <Stat label={t('anal.avg_score')}  value="73%"   delta="+4%" />
-        <Stat label={t('anal.avg_dur')}    value="4:32"  hint={t('anal.per_session')} />
+        {loading ? (
+          <>
+            {[1,2,3,4].map(i => (
+              <div key={i} className="card" style={{ padding: '18px 20px' }}>
+                <div className="skel" style={{ height: 10, width: '50%', borderRadius: 4, marginBottom: 10 }} />
+                <div className="skel" style={{ height: 28, width: '60%', borderRadius: 4, marginBottom: 6 }} />
+                <div className="skel" style={{ height: 10, width: '40%', borderRadius: 4 }} />
+              </div>
+            ))}
+          </>
+        ) : (
+          <>
+            <Stat label={t('anal.sessions')}   value={data?.total_sessions ?? 0} />
+            <Stat label={t('anal.completion')} value={(data?.completion_rate ?? 0) + '%'} />
+            <Stat label={t('anal.avg_score')}  value={data?.avg_score ?? 0} hint={t('anal.per_player')} />
+            <Stat label={t('anal.players')}    value={data?.players ?? 0} />
+          </>
+        )}
       </div>
 
       <div className="anal-chart-grid">
@@ -39,7 +62,9 @@ function Analytics({ onNav }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24 }}>
             <div>
               <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('anal.plays_time')}</div>
-              <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.02em', marginTop: 4 }}>1,284 sessions</div>
+              <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.02em', marginTop: 4 }}>
+                {loading ? <div className="skel" style={{ height: 22, width: 120, borderRadius: 4, display: 'inline-block' }} /> : `${data?.total_sessions ?? 0} sessions`}
+              </div>
             </div>
             <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--text-muted)' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -50,11 +75,17 @@ function Analytics({ onNav }) {
               </span>
             </div>
           </div>
-          <SparkChart />
+          {loading
+            ? <div className="skel" style={{ height: 200, borderRadius: 8 }} />
+            : <SparkChart thisPeriod={data?.this_period || []} prevPeriod={data?.prev_period || []} labels={data?.period_labels || []} />
+          }
         </div>
         <div className="card" style={{ padding: 24 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 16 }}>{t('anal.score_dist')}</div>
-          <ScoreDistribution />
+          {loading
+            ? <div className="skel" style={{ height: 180, borderRadius: 8 }} />
+            : <ScoreDistribution buckets={data?.score_dist || []} />
+          }
         </div>
       </div>
 
@@ -62,9 +93,21 @@ function Analytics({ onNav }) {
         <div className="card" style={{ padding: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('anal.top_quizzes')}</div>
-            <button className="btn btn--ghost btn--sm">{t('anal.view_all')}</button>
+            <button className="btn btn--ghost btn--sm" onClick={() => onNav('dashboard', { tab: 'mine' })}>{t('anal.view_all')}</button>
           </div>
-          <TopQuizzes onOpen={() => onNav('editor')} />
+          {loading
+            ? Array.from({ length: 3 }, (_, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 4px', borderBottom: i < 2 ? '1px solid var(--border)' : 'none' }}>
+                  <div className="skel" style={{ width: 18, height: 12, borderRadius: 3 }} />
+                  <div className="skel" style={{ width: 32, height: 32, borderRadius: 6, flexShrink: 0 }} />
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    <div className="skel" style={{ height: 13, width: '70%', borderRadius: 4 }} />
+                    <div className="skel" style={{ height: 10, width: '45%', borderRadius: 4 }} />
+                  </div>
+                </div>
+              ))
+            : <TopQuizzes quizzes={data?.top_quizzes || []} onOpen={(id) => onNav('editor', { quizId: id })} />
+          }
         </div>
 
         <div className="card" style={{ padding: 24 }}>
@@ -72,54 +115,72 @@ function Analytics({ onNav }) {
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('anal.hardest')}</div>
             <span className="pill"><Icon name="sparkle" size={11} /> {t('anal.ai_flagged')}</span>
           </div>
-          <HardestQuestions />
+          {loading
+            ? Array.from({ length: 3 }, (_, i) => (
+                <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                  <div className="skel" style={{ height: 13, width: '90%', borderRadius: 4 }} />
+                  <div className="skel" style={{ height: 4, width: '100%', borderRadius: 99 }} />
+                </div>
+              ))
+            : <HardestQuestions items={data?.hardest_questions || []} />
+          }
         </div>
       </div>
     </div>
   );
 }
 
-function SparkChart() {
-  const points1 = [38, 42, 39, 56, 48, 71, 65, 82, 78, 90, 85, 96, 88, 102];
-  const points2 = [30, 35, 33, 41, 38, 52, 48, 60, 56, 68, 62, 71, 70, 78];
-  const max = Math.max(...points1, ...points2);
-  const toPath = (pts) => {
-    return pts.map((p, i) => {
-      const x = (i / (pts.length - 1)) * 100;
+function SparkChart({ thisPeriod, prevPeriod, labels }) {
+  if (!thisPeriod.length) {
+    return (
+      <div style={{ height: 200, display: 'grid', placeItems: 'center', color: 'var(--text-faint)', fontSize: 13 }}>
+        {t('anal.no_data')}
+      </div>
+    );
+  }
+  const max = Math.max(...thisPeriod, ...prevPeriod, 1);
+  const toPath = (pts) =>
+    pts.map((p, i) => {
+      const x = (i / Math.max(pts.length - 1, 1)) * 100;
       const y = 100 - (p / max) * 90;
       return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
     }).join(' ');
-  };
+
+  const displayLabels = labels.length <= 14 ? labels : labels.filter((_, i) => i % Math.ceil(labels.length / 7) === 0);
+
   return (
     <div style={{ position: 'relative', height: 200 }}>
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%' }}>
         {[0, 25, 50, 75, 100].map(y => (
           <line key={y} x1={0} y1={y} x2={100} y2={y} stroke="var(--border)" strokeWidth={0.2} vectorEffect="non-scaling-stroke" />
         ))}
-        <path d={toPath(points2)} fill="none" stroke="var(--accent)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" strokeDasharray="3 3" />
-        <path d={toPath(points1) + ` L 100 100 L 0 100 Z`} fill="oklch(15% 0.005 270 / 0.06)" />
-        <path d={toPath(points1)} fill="none" stroke="var(--text)" strokeWidth={1.8} vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
+        {prevPeriod.length > 0 && (
+          <path d={toPath(prevPeriod)} fill="none" stroke="var(--accent)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" strokeDasharray="3 3" />
+        )}
+        <path d={toPath(thisPeriod) + ` L 100 100 L 0 100 Z`} fill="oklch(15% 0.005 270 / 0.06)" />
+        <path d={toPath(thisPeriod)} fill="none" stroke="var(--text)" strokeWidth={1.8} vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
       <div style={{
         position: 'absolute', bottom: -22, left: 0, right: 0,
         display: 'flex', justifyContent: 'space-between',
         fontSize: 10, color: 'var(--text-faint)', fontFamily: 'JetBrains Mono',
       }}>
-        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => <span key={d}>{d}</span>)}
+        {displayLabels.map((d, i) => <span key={i}>{d}</span>)}
       </div>
     </div>
   );
 }
 
-function ScoreDistribution() {
-  const buckets = [
-    { range: '0-20', count: 18 },
-    { range: '20-40', count: 32 },
-    { range: '40-60', count: 78 },
-    { range: '60-80', count: 142 },
-    { range: '80-100', count: 96 },
-  ];
-  const max = Math.max(...buckets.map(b => b.count));
+function ScoreDistribution({ buckets = [] }) {
+  const total = buckets.reduce((s, b) => s + b.count, 0);
+  if (!total) {
+    return (
+      <div style={{ height: 180, display: 'grid', placeItems: 'center', color: 'var(--text-faint)', fontSize: 13 }}>
+        {t('anal.no_data')}
+      </div>
+    );
+  }
+  const max = Math.max(...buckets.map(b => b.count), 1);
   return (
     <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 180, padding: '12px 0 0' }}>
       {buckets.map((b, i) => (
@@ -141,21 +202,20 @@ function ScoreDistribution() {
   );
 }
 
-function TopQuizzes({ onOpen }) {
-  const items = window.MOCK_QUIZZES.slice(0, 5).map((q, i) => ({
-    ...q,
-    growth: [12, 8, 24, -3, 6][i],
-  }));
+function TopQuizzes({ quizzes, onOpen }) {
+  if (!quizzes.length) {
+    return <div style={{ color: 'var(--text-faint)', fontSize: 13, padding: '12px 0' }}>{t('anal.no_quizzes')}</div>;
+  }
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
-      {items.map((q, i) => (
+      {quizzes.map((q, i) => (
         <div
           key={q.id}
-          onClick={onOpen}
+          onClick={() => onOpen(q.id)}
           style={{
             display: 'flex', alignItems: 'center', gap: 14,
             padding: '12px 4px',
-            borderBottom: i < items.length - 1 ? '1px solid var(--border)' : 'none',
+            borderBottom: i < quizzes.length - 1 ? '1px solid var(--border)' : 'none',
             cursor: 'pointer',
           }}
         >
@@ -166,37 +226,30 @@ function TopQuizzes({ onOpen }) {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.title}</div>
             <div style={{ fontSize: 12, color: 'var(--text-faint)' }}>
-              <span className="mono">{q.plays.toLocaleString()}</span> {t('dash.plays')} · <span className="mono">{q.avgScore || '—'}%</span> {t('dash.avg')}
+              <span className="mono">{q.session_count}</span> {t('anal.sessions_lower')}
             </div>
           </div>
-          <div className="mono" style={{
-            fontSize: 12, fontWeight: 600,
-            color: q.growth > 0 ? 'oklch(55% 0.15 145)' : 'var(--danger)',
-          }}>{q.growth > 0 ? '+' : ''}{q.growth}%</div>
         </div>
       ))}
     </div>
   );
 }
 
-function HardestQuestions() {
-  const items = [
-    { q: 'What is the time complexity of binary search?', correctRate: 23 },
-    { q: 'Which protocol does HTTPS layer over?', correctRate: 31 },
-    { q: 'Default value of `display` for <span>?', correctRate: 42 },
-    { q: 'What is a closure in JavaScript?', correctRate: 48 },
-  ];
+function HardestQuestions({ items }) {
+  if (!items.length) {
+    return <div style={{ color: 'var(--text-faint)', fontSize: 13, padding: '12px 0' }}>{t('anal.no_questions')}</div>;
+  }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {items.map((it, i) => (
         <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ fontSize: 13, fontWeight: 500, lineHeight: 1.35 }}>{it.q}</div>
+          <div style={{ fontSize: 13, fontWeight: 500, lineHeight: 1.35 }}>{it.question}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ flex: 1, height: 4, background: 'var(--bg-2)', borderRadius: 99, overflow: 'hidden' }}>
-              <div style={{ width: `${it.correctRate}%`, height: '100%', background: 'oklch(60% 0.18 25)', borderRadius: 99 }} />
+              <div style={{ width: `${it.correct_rate}%`, height: '100%', background: 'oklch(60% 0.18 25)', borderRadius: 99 }} />
             </div>
-            <span className="mono" style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', width: 30, textAlign: 'right' }}>
-              {it.correctRate}%
+            <span className="mono" style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', width: 36, textAlign: 'right' }}>
+              {it.correct_rate}%
             </span>
           </div>
         </div>

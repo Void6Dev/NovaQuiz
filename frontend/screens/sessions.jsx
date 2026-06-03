@@ -7,11 +7,12 @@ function Sessions({ onNav }) {
   const [error, setError] = useState('');
   const [sessions, setSessions] = useState([]);
   const [joining, setJoining] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     window.API.get('/sessions/')
-      .then(data => setSessions((data.sessions || []).map(window.API.fromBackendSession)))
-      .catch(() => {});
+      .then(data => { setSessions((data.sessions || []).map(window.API.fromBackendSession)); setLoading(false); })
+      .catch(() => setLoading(false));
   }, []);
 
   const filtered = sessions.filter(s => {
@@ -37,7 +38,7 @@ function Sessions({ onNav }) {
   };
 
   return (
-    <div className="page fade-in" data-screen-label="08 Sessions">
+    <div className="page fade-in" {...screenLabel('08 Sessions')}>
       <PageHeader title={t('sess.title')} subtitle={t('sess.subtitle')}>
         <button className="btn btn--accent" onClick={() => onNav('dashboard')}>
           <Icon name="bolt" size={15} /> {t('sess.host')}
@@ -126,12 +127,25 @@ function Sessions({ onNav }) {
           <div>{t('sess.col_status')}</div>
           <div />
         </div>
-        {filtered.length === 0 && (
+        {loading && Array.from({ length: 5 }, (_, i) => (
+          <div key={i} className={`sess-table-row${i < 4 ? ' sess-table-row--sep' : ''}`}>
+            <div className="skel" style={{ height: 18, width: 80, borderRadius: 4 }} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div className="skel" style={{ height: 14, width: '70%', borderRadius: 4 }} />
+              <div className="skel" style={{ height: 11, width: '40%', borderRadius: 4 }} />
+            </div>
+            <div className="skel sess-col-host" style={{ height: 14, width: '80%', borderRadius: 4 }} />
+            <div className="skel sess-col-players" style={{ height: 14, width: '60%', borderRadius: 4 }} />
+            <div className="skel" style={{ height: 22, width: 60, borderRadius: 99 }} />
+            <div className="skel" style={{ height: 28, width: 56, borderRadius: 6 }} />
+          </div>
+        ))}
+        {!loading && filtered.length === 0 && (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
             {t('sess.no_match')}
           </div>
         )}
-        {filtered.map((s, i) => (
+        {!loading && filtered.map((s, i) => (
           <div
             key={s.id}
             className={`sess-table-row fade-in ${i < filtered.length - 1 ? 'sess-table-row--sep' : ''}`}

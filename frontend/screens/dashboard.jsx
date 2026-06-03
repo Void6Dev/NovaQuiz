@@ -3,13 +3,21 @@ const COVERS_KEY = 'quiz:covers';
 function loadCovers() { try { return JSON.parse(localStorage.getItem(COVERS_KEY) || '{}'); } catch { return {}; } }
 function saveCovers(c) { try { localStorage.setItem(COVERS_KEY, JSON.stringify(c)); } catch {} }
 
+const COVER_TRANSFORMS_KEY = 'quiz:cover_transforms';
+function loadCoverTransforms() { try { return JSON.parse(localStorage.getItem(COVER_TRANSFORMS_KEY) || '{}'); } catch { return {}; } }
+function saveCoverTransforms(c) { try { localStorage.setItem(COVER_TRANSFORMS_KEY, JSON.stringify(c)); } catch {} }
+
 function Dashboard({ onNav }) {
   window.useLang();
-  const [tab, setTab]               = useState(() => window.getQueryParams().tab === 'mine' ? 'mine' : 'explore');
+  const [tab, setTab]               = useState(() => { const q = window.getQueryParams().tab; return q === 'mine' ? 'mine' : q === 'shared' ? 'shared' : 'explore'; });
   const [exploreQuizzes, setExplore] = useState([]);
   const [myQuizzes, setMine]         = useState([]);
-  const [covers, setCovers]          = useState(loadCovers);
+  const [sharedQuizzes, setShared]   = useState([]);
+  const [covers, setCovers]               = useState(loadCovers);
+  const [coverTransforms, setCoverTransforms] = useState(loadCoverTransforms);
+  const [cropCoverId, setCropCoverId]     = useState(null);
   const [loading, setLoading]        = useState(true);
+  const [exploreLoading, setExploreLoading] = useState(false);
   const [search, setSearch]          = useState('');
   const [authorSearch, setAuthor]    = useState('');
   const [view, setView]              = useState('grid');
@@ -17,18 +25,40 @@ function Dashboard({ onNav }) {
   const [topicFilter, setTopicFilter] = useState('all');
   const [confirmDelete, setConfirmDelete] = useState(null);
   const u = window.CURRENT_USER;
+  const exploreTimerRef = useRef(null);
 
+  // Mine + shared load once on mount
   useEffect(() => {
     Promise.all([
-      window.API.get('/quizzes/'),
       window.API.get('/quizzes/?mine=1'),
-    ]).then(([all, mine]) => {
-      const myUsername = window.CURRENT_USER.username;
-      setExplore(all.quizzes.map(window.API.fromBackendQuiz).filter(q => (q.creator?.username || '') !== myUsername));
+      window.API.get('/quizzes/?shared=1'),
+    ]).then(([mine, shared]) => {
       setMine(mine.quizzes.map(window.API.fromBackendQuiz));
+      setShared(shared.quizzes.map(window.API.fromBackendQuiz));
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
+
+  // Explore: server-side search + topic, debounced
+  useEffect(() => {
+    if (tab !== 'explore') return;
+    clearTimeout(exploreTimerRef.current);
+    setExploreLoading(true);
+    const myUsername = window.CURRENT_USER.username;
+    exploreTimerRef.current = setTimeout(() => {
+      const params = new URLSearchParams();
+      if (search) params.set('search', search);
+      if (topicFilter !== 'all') params.set('topic', topicFilter);
+      const qs = params.toString();
+      window.API.get('/quizzes/' + (qs ? '?' + qs : ''))
+        .then(data => {
+          setExplore(data.quizzes.map(window.API.fromBackendQuiz).filter(q => (q.creator?.username || '') !== myUsername));
+          setExploreLoading(false);
+        })
+        .catch(() => setExploreLoading(false));
+    }, search ? 300 : 0);
+    return () => clearTimeout(exploreTimerRef.current);
+  }, [search, topicFilter, tab]);
 
   const deleteQuiz = (id) => {
     window.API.post('/quizzes/' + id + '/delete/')
@@ -47,30 +77,55 @@ function Dashboard({ onNav }) {
       .catch(err => showToast(err.message, 'error'));
   };
 
+  const togglePublic = (q) => {
+    const next = !q.is_public;
+    setMine(qs => qs.map(x =>
+      x.id === q.id ? { ...x, is_public: next, status: next ? 'live' : 'draft' } : x
+    ));
+    window.API.post('/quizzes/' + q.id + '/update/', {
+      title: q.title, topic: q.topic, description: q.description, is_public: next,
+    }).catch(err => {
+      setMine(qs => qs.map(x => x.id === q.id ? { ...x, is_public: q.is_public, status: q.status } : x));
+      showToast(err.message, 'error');
+    });
+  };
+
   const setCover = (id, dataURL) => {
     const next = { ...covers, [id]: dataURL };
     setCovers(next); saveCovers(next);
+    setCropCoverId(id);
   };
   const clearCover = (id) => {
-    const next = { ...covers }; delete next[id];
-    setCovers(next); saveCovers(next);
+    const nc = { ...covers }; delete nc[id];
+    const nt = { ...coverTransforms }; delete nt[id];
+    setCovers(nc); saveCovers(nc);
+    setCoverTransforms(nt); saveCoverTransforms(nt);
+  };
+  const saveCoverTransform = (id, tr) => {
+    const next = { ...coverTransforms, [id]: tr };
+    setCoverTransforms(next); saveCoverTransforms(next);
   };
 
-  const rawQuizzes     = tab === 'mine' ? myQuizzes : exploreQuizzes;
-  const currentQuizzes = rawQuizzes.map(q => ({ ...q, cover: covers[q.id] || null }));
+  const rawQuizzes     = tab === 'mine' ? myQuizzes : tab === 'shared' ? sharedQuizzes : exploreQuizzes;
+  const currentQuizzes = rawQuizzes.map(q => ({ ...q, cover: covers[q.id] || null, localCoverTransform: coverTransforms[q.id] || null }));
 
   const filtered = currentQuizzes.filter(q => {
-    if (search && !q.title.toLowerCase().includes(search.toLowerCase())) return false;
-    if (tab === 'explore' && authorSearch && !(q.creator?.username || '').toLowerCase().includes(authorSearch.toLowerCase())) return false;
-    if (filter !== 'all' && q.status !== filter) return false;
-    if (topicFilter !== 'all' && q.topic !== topicFilter) return false;
+    if (tab === 'explore') {
+      // search + topicFilter handled server-side; only filter author + status client-side
+      if (authorSearch && !(q.creator?.username || '').toLowerCase().includes(authorSearch.toLowerCase())) return false;
+      if (filter !== 'all' && q.status !== filter) return false;
+    } else {
+      if (search && !q.title.toLowerCase().includes(search.toLowerCase())) return false;
+      if (filter !== 'all' && q.status !== filter) return false;
+      if (topicFilter !== 'all' && q.topic !== topicFilter) return false;
+    }
     return true;
   });
 
   const switchTab = (t) => { setTab(t); setSearch(''); setAuthor(''); setFilter('all'); };
 
   return (
-    <div className="page fade-in" data-screen-label="02 Browse">
+    <div className="page fade-in" {...screenLabel('02 Browse')}>
       <PageHeader
         title={tab === 'mine' ? t('dash.title_mine') : t('dash.title_browse')}
         subtitle={tab === 'mine' ? `${myQuizzes.length} ${t('dash.sub_mine')}` : t('dash.sub_browse')}
@@ -84,38 +139,18 @@ function Dashboard({ onNav }) {
 
       {/* Tab switcher */}
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20 }}>
-        <div style={{
-          display: 'flex', background: 'var(--surface)', borderRadius: 'var(--r-lg)',
-          border: '1px solid var(--border)', padding: 4, gap: 2,
-        }}>
-          {[
-            { id: 'explore', label: t('dash.tab_browse'), icon: 'compass' },
-            { id: 'mine',    label: t('dash.tab_mine'),   icon: 'folder'  },
-          ].map(item => (
-            <button
-              key={item.id}
-              onClick={() => switchTab(item.id)}
-              style={{
-                padding: '8px 18px', borderRadius: 10, fontSize: 13, fontWeight: 500,
-                display: 'flex', alignItems: 'center', gap: 7,
-                background: tab === item.id ? 'var(--bg)' : 'transparent',
-                boxShadow: tab === item.id ? 'var(--shadow-sm)' : 'none',
-                color: tab === item.id ? 'var(--text)' : 'var(--text-muted)',
-                transition: 'all 150ms var(--ease)',
-              }}
-            >
-              <Icon name={item.icon} size={14} />
-              {item.label}
-              {item.id === 'mine' && !loading && myQuizzes.length > 0 && (
-                <span style={{
-                  fontSize: 11, fontWeight: 600, padding: '1px 6px', borderRadius: 99,
-                  background: tab === 'mine' ? 'var(--accent)' : 'var(--bg-2)',
-                  color: tab === 'mine' ? 'var(--accent-fg)' : 'var(--text-faint)',
-                }}>{myQuizzes.length}</span>
-              )}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          size="lg"
+          ariaLabel="Browse, my quizzes or shared"
+          value={tab}
+          onChange={switchTab}
+          options={[
+            { value: 'explore', label: t('dash.tab_browse'), icon: 'compass' },
+            { value: 'mine',    label: t('dash.tab_mine'),   icon: 'folder',
+              badge: !loading && myQuizzes.length > 0 ? myQuizzes.length : undefined },
+            { value: 'shared',  label: t('nav.shared'),      icon: 'users' },
+          ]}
+        />
       </div>
 
       {/* Toolbar */}
@@ -125,64 +160,46 @@ function Dashboard({ onNav }) {
           {tab === 'explore' && (
             <SearchInput value={authorSearch} onChange={setAuthor} placeholder={t('dash.search_author')} />
           )}
-          <div style={{
-            display: 'flex', background: 'var(--surface)', borderRadius: 'var(--r-md)',
-            border: '1px solid var(--border)', padding: 3, flexShrink: 0,
-          }}>
-            {[
-              { id: 'all',   label: t('dash.all') },
-              { id: 'live',  label: t('dash.status_live') },
-              { id: 'draft', label: t('dash.status_draft') },
-            ].map(f => (
-              <button
-                key={f.id}
-                onClick={() => setFilter(f.id)}
-                style={{
-                  padding: '6px 14px', fontSize: 13, fontWeight: 500,
-                  borderRadius: 7, textTransform: 'capitalize',
-                  background: filter === f.id ? 'var(--bg)' : 'transparent',
-                  color: filter === f.id ? 'var(--text)' : 'var(--text-muted)',
-                  boxShadow: filter === f.id ? 'var(--shadow-sm)' : 'none',
-                  transition: 'all 150ms var(--ease)',
-                }}
-              >{f.label}</button>
-            ))}
-          </div>
+          {tab !== 'shared' && (
+            <SegmentedControl
+              ariaLabel="Filter by status"
+              value={filter}
+              onChange={setFilter}
+              options={[
+                { value: 'all',   label: t('dash.all') },
+                { value: 'live',  label: t('dash.status_live') },
+                { value: 'draft', label: t('dash.status_draft') },
+              ]}
+            />
+          )}
         </div>
 
         <div className="toolbar-row__right">
           <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{filtered.length} of {currentQuizzes.length}</span>
-          <div style={{
-            display: 'flex', background: 'var(--surface)', borderRadius: 'var(--r-md)',
-            border: '1px solid var(--border)', padding: 3,
-          }}>
-            <Tooltip label="Grid">
-              <button onClick={() => setView('grid')} style={{
-                padding: 6, borderRadius: 6,
-                background: view === 'grid' ? 'var(--bg)' : 'transparent',
-                color: view === 'grid' ? 'var(--text)' : 'var(--text-muted)',
-              }}><Icon name="grid" size={15} /></button>
-            </Tooltip>
-            <Tooltip label="List">
-              <button onClick={() => setView('list')} style={{
-                padding: 6, borderRadius: 6,
-                background: view === 'list' ? 'var(--bg)' : 'transparent',
-                color: view === 'list' ? 'var(--text)' : 'var(--text-muted)',
-              }}><Icon name="list" size={15} /></button>
-            </Tooltip>
-          </div>
+          <SegmentedControl
+            size="sm"
+            ariaLabel="View as grid or list"
+            value={view}
+            onChange={setView}
+            options={[
+              { value: 'grid', icon: 'grid', iconSize: 15, tooltip: 'Grid' },
+              { value: 'list', icon: 'list', iconSize: 15, tooltip: 'List' },
+            ]}
+          />
         </div>
       </div>
 
       <TopicChips selected={topicFilter} onSelect={setTopicFilter} />
 
-      {loading ? (
-        <div style={{ padding: '80px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>{t('dash.loading')}</div>
+      {loading || (tab === 'explore' && exploreLoading) ? (
+        <div className="quiz-grid">
+          {Array.from({ length: 8 }, (_, i) => <QuizCardSkeleton key={i} />)}
+        </div>
       ) : filtered.length === 0 ? (
         <EmptyState
           onCreate={tab === 'mine' ? () => onNav('editor', { newQuiz: true }) : null}
-          message={tab === 'mine' ? t('dash.empty_mine') : t('dash.empty_browse')}
-          hint={tab === 'mine' ? t('dash.empty_mine_hint') : t('dash.empty_hint')}
+          message={tab === 'mine' ? t('dash.empty_mine') : tab === 'shared' ? t('shared.no_title') : t('dash.empty_browse')}
+          hint={tab === 'mine' ? t('dash.empty_mine_hint') : tab === 'shared' ? t('shared.no_hint') : t('dash.empty_hint')}
         />
       ) : view === 'grid' ? (
         <div className="quiz-grid">
@@ -200,6 +217,8 @@ function Dashboard({ onNav }) {
                 onDuplicate={() => duplicateQuiz(q)}
                 onSetCover={isOwn ? (dataURL) => setCover(q.id, dataURL) : null}
                 onClearCover={isOwn ? () => clearCover(q.id) : null}
+                onCropCover={isOwn && (q.cover || q.image) ? () => setCropCoverId(q.id) : null}
+                onTogglePublic={isOwn ? () => togglePublic(q) : null}
                 delay={i * 30}
               />
             );
@@ -214,15 +233,39 @@ function Dashboard({ onNav }) {
           onRunLive={(id) => onNav('live', { quizId: id })}
           onDelete={(q) => setConfirmDelete(q)}
           onDuplicate={(q) => duplicateQuiz(q)}
+          onTogglePublic={(q) => togglePublic(q)}
         />
       )}
+
+      {cropCoverId && (() => {
+        const cq = currentQuizzes.find(q => q.id === cropCoverId);
+        const coverUrl = cq && (cq.cover || cq.image);
+        if (!coverUrl) { setCropCoverId(null); return null; }
+        const currentTr = cq.cover ? cq.localCoverTransform : cq.coverTransform;
+        return (
+          <ImageCropModal
+            imageUrl={coverUrl}
+            transform={currentTr}
+            aspectRatio={16 / 9}
+            onSave={newTr => {
+              if (cq.cover) {
+                saveCoverTransform(cropCoverId, newTr);
+              } else {
+                window.API.post('/quizzes/' + cropCoverId + '/update/', { cover_transform: JSON.stringify(newTr) }).catch(() => {});
+              }
+              setCropCoverId(null);
+            }}
+            onClose={() => setCropCoverId(null)}
+          />
+        );
+      })()}
 
       {confirmDelete && (
         <Modal width={420} onClose={() => setConfirmDelete(null)}>
           <div style={{ padding: 28 }}>
             <div style={{
               width: 44, height: 44, borderRadius: 12,
-              background: 'oklch(95% 0.04 25)', color: 'oklch(40% 0.16 25)',
+              background: 'var(--danger-soft)', color: 'var(--danger-text)',
               display: 'grid', placeItems: 'center', marginBottom: 18,
             }}>
               <Icon name="trash" size={20} />
@@ -239,7 +282,7 @@ function Dashboard({ onNav }) {
               <button className="btn btn--secondary" onClick={() => setConfirmDelete(null)}>{t('dash.cancel')}</button>
               <button
                 className="btn"
-                style={{ background: 'oklch(60% 0.20 25)', color: 'white' }}
+                style={{ background: 'var(--danger)', color: 'var(--danger-fg)' }}
                 onClick={() => { deleteQuiz(confirmDelete.id); setConfirmDelete(null); }}
               >
                 <Icon name="trash" size={14} /> {t('dash.delete_confirm')}
@@ -252,8 +295,26 @@ function Dashboard({ onNav }) {
   );
 }
 
+// === QuizCard skeleton ===
+function QuizCardSkeleton() {
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>
+      <div className="skel" style={{ aspectRatio: '16/9' }} />
+      <div style={{ padding: '14px 18px 18px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="skel" style={{ height: 10, width: '38%' }} />
+        <div className="skel" style={{ height: 16, width: '78%' }} />
+        <div className="skel" style={{ height: 12, width: '56%' }} />
+        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+          <div className="skel" style={{ height: 10, width: 40 }} />
+          <div className="skel" style={{ height: 10, width: 40 }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // === QuizCard ===
-function QuizCard({ quiz, isOwn, onOpen, onPlay, onRunLive, onDelete, onDuplicate, onSetCover, onClearCover, delay }) {
+function QuizCard({ quiz, isOwn, onOpen, onPlay, onRunLive, onDelete, onDuplicate, onSetCover, onClearCover, onCropCover, onTogglePublic, delay }) {
   const topic = window.TOPIC_BY_CODE[quiz.topic] || { label: quiz.topic, hue: 200 };
   const fileInput = useRef(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -308,7 +369,7 @@ function QuizCard({ quiz, isOwn, onOpen, onPlay, onRunLive, onDelete, onDuplicat
   return (
     <div
       ref={cardRef}
-      className="holo-card slide-up"
+      className={`holo-card slide-up${isOwn && !quiz.is_public ? ' holo-card--private' : ''}`}
       style={{ animationDelay: `${delay}ms` }}
       onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
@@ -319,16 +380,32 @@ function QuizCard({ quiz, isOwn, onOpen, onPlay, onRunLive, onDelete, onDuplicat
     >
       <div className="holo-card__inner">
         <div className="holo-card__cover">
-          {(quiz.cover || quiz.image) ? (
-            <img src={quiz.cover || quiz.image} alt="" className="holo-card__cover-img" />
-          ) : (
+          {(quiz.cover || quiz.image) ? (() => {
+            const coverUrl = quiz.cover || quiz.image;
+            const coverTr = quiz.cover ? quiz.localCoverTransform : quiz.coverTransform;
+            return (
+              <div style={{ ...window.applyImageTransform(coverUrl, coverTr, 16 / 9) }} />
+            );
+          })() : (
             <CoverPlaceholder label={topic.label} hue={topic.hue} />
           )}
 
           <div className="holo-card__top">
-            <span className="pill holo-card__status">
-              {quiz.status === 'live' ? <><span className="status-dot" /> Live</> : 'Draft'}
-            </span>
+            {isOwn ? (
+              <span className={`pill holo-card__status${!quiz.is_public ? ' holo-card__status--private' : ''}`}>
+                {quiz.is_public
+                  ? <><span className="status-dot" />{t('dash.vis_public')}</>
+                  : <><Icon name="lock" size={10} />{t('dash.vis_private')}</>
+                }
+              </span>
+            ) : (
+              <span className="pill holo-card__status">
+                {quiz.is_public
+                  ? <><span className="status-dot" />{t('dash.vis_public')}</>
+                  : 'Draft'
+                }
+              </span>
+            )}
             {!isOwn && (
               <span className="pill holo-card__status" style={{ fontSize: 10 }}>
                 <Icon name="user" size={10} /> @{quiz.creator?.username || '?'}
@@ -343,11 +420,26 @@ function QuizCard({ quiz, isOwn, onOpen, onPlay, onRunLive, onDelete, onDuplicat
                   <Icon name="edit" size={14} />
                 </button>
               </Tooltip>
+              <Tooltip label={quiz.is_public ? t('dash.make_private') : t('dash.make_public')}>
+                <button
+                  className={`holo-card__action${!quiz.is_public ? ' holo-card__action--lock' : ''}`}
+                  onClick={() => onTogglePublic()}
+                >
+                  <Icon name={quiz.is_public ? 'globe' : 'lock'} size={14} />
+                </button>
+              </Tooltip>
               <Tooltip label={quiz.cover ? t('dash.replace_cover') : t('dash.set_cover')}>
                 <button className="holo-card__action" onClick={() => fileInput.current?.click()}>
                   <Icon name="image" size={14} />
                 </button>
               </Tooltip>
+              {onCropCover && (
+                <Tooltip label={t('ui.crop_title')}>
+                  <button className="holo-card__action" onClick={onCropCover}>
+                    <Icon name="crop" size={14} />
+                  </button>
+                </Tooltip>
+              )}
               <div style={{ position: 'relative' }}>
                 <button className="holo-card__action" onClick={(e) => { e.stopPropagation(); setMenuOpen(o => !o); }}>
                   <Icon name="more" size={14} />
@@ -462,10 +554,10 @@ function MenuItem({ icon, label, onClick, danger }) {
         width: '100%', padding: '8px 10px',
         borderRadius: 7, display: 'flex', alignItems: 'center', gap: 10,
         fontSize: 13, fontWeight: 500,
-        color: danger ? 'oklch(55% 0.18 25)' : 'var(--text)',
+        color: danger ? 'var(--danger-text)' : 'var(--text)',
         textAlign: 'left', transition: 'background 100ms',
       }}
-      onMouseEnter={e => e.currentTarget.style.background = danger ? 'oklch(96% 0.04 25)' : 'var(--bg-2)'}
+      onMouseEnter={e => e.currentTarget.style.background = danger ? 'var(--danger-soft)' : 'var(--bg-2)'}
       onMouseLeave={e => e.currentTarget.style.background = ''}
     >
       <Icon name={icon} size={14} /> {label}
@@ -489,7 +581,7 @@ function HoloCardStyles() {
         border-radius: var(--r-lg); overflow: hidden;
         display: flex; flex-direction: column;
         transform: perspective(900px) rotateX(var(--rx)) rotateY(var(--ry));
-        transition: transform 220ms var(--ease), box-shadow 220ms var(--ease), border-color 200ms;
+        transition: transform 220ms var(--ease), box-shadow 220ms var(--ease), border-color 380ms var(--ease);
         will-change: transform;
       }
       .holo-card:hover .holo-card__inner {
@@ -516,6 +608,7 @@ function HoloCardStyles() {
       .holo-card__status {
         background: oklch(100% 0 0 / 0.92); backdrop-filter: blur(8px);
         color: oklch(20% 0 0); border: 0;
+        transition: color 300ms var(--ease);
       }
       .status-dot {
         width: 6px; height: 6px; border-radius: 99px;
@@ -542,7 +635,7 @@ function HoloCardStyles() {
         background: oklch(100% 0 0 / 0.92); backdrop-filter: blur(10px);
         color: oklch(20% 0 0); display: grid; place-items: center;
         box-shadow: var(--shadow-sm);
-        transition: transform 120ms var(--ease), background 120ms;
+        transition: transform 120ms var(--ease), background 200ms, color 250ms var(--ease);
       }
       .holo-card__action:hover { background: white; transform: translateY(-1px); }
       .holo-card__play {
@@ -611,12 +704,43 @@ function HoloCardStyles() {
       .holo-card__sep { opacity: 0.6; }
       .holo-card__num { color: var(--text); font-weight: 600; }
       .holo-card__edited { margin-left: auto; }
+
+      /* Private card — red border glow */
+      .holo-card--private .holo-card__inner {
+        border-color: oklch(72% 0.14 25 / 0.45);
+      }
+      .holo-card--private:hover .holo-card__inner {
+        border-color: oklch(62% 0.20 25 / 0.65);
+        box-shadow: 0 24px 48px oklch(0% 0 0 / 0.12), 0 8px 16px oklch(0% 0 0 / 0.06),
+          0 0 0 1px oklch(62% 0.20 25 / 0.28);
+      }
+      [data-theme="dark"] .holo-card--private:hover .holo-card__inner {
+        box-shadow: 0 30px 60px oklch(0% 0 0 / 0.55),
+          0 0 0 1px oklch(62% 0.20 25 / 0.40);
+      }
+
+      /* Lock action button — same glass, just red icon */
+      .holo-card__action--lock {
+        color: oklch(50% 0.20 25) !important;
+      }
+      .holo-card__action--lock:hover {
+        color: oklch(38% 0.22 25) !important;
+      }
+
+      /* Private status pill — same glass, just red text */
+      .holo-card__status--private {
+        color: oklch(48% 0.20 25) !important;
+      }
+      [data-theme="dark"] .holo-card__status--private {
+        color: oklch(68% 0.16 25) !important;
+      }
+
     `}</style>
   );
 }
 
 // === List view ===
-function QuizListView({ quizzes, myUsername, onOpen, onPlay, onRunLive, onDelete, onDuplicate }) {
+function QuizListView({ quizzes, myUsername, onOpen, onPlay, onRunLive, onDelete, onDuplicate, onTogglePublic }) {
   return (
     <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
       <div className="quiz-list-header">
@@ -638,10 +762,12 @@ function QuizListView({ quizzes, myUsername, onOpen, onPlay, onRunLive, onDelete
             className="quiz-row"
           >
             <div className="qlc-title" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 8, overflow: 'hidden', flexShrink: 0, background: 'var(--bg-2)' }}>
-                {(q.cover || q.image)
-                  ? <img src={q.cover || q.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                  : <CoverPlaceholder label="" hue={topic.hue} />}
+              <div style={{ width: 40, height: 40, borderRadius: 8, overflow: 'hidden', flexShrink: 0, background: 'var(--bg-2)', position: 'relative' }}>
+                {(q.cover || q.image) ? (() => {
+                  const coverUrl = q.cover || q.image;
+                  const coverTr = q.cover ? q.localCoverTransform : q.coverTransform;
+                  return <div style={window.applyImageTransform(coverUrl, coverTr, 1)} />;
+                })() : <CoverPlaceholder label="" hue={topic.hue} />}
               </div>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 600 }}>{q.title}</div>
@@ -652,9 +778,21 @@ function QuizListView({ quizzes, myUsername, onOpen, onPlay, onRunLive, onDelete
               @{q.creator?.username || '—'}
             </div>
             <div className="qlc-meta">
-              <span className="pill pill--dot" style={q.status === 'live' ? { color: 'oklch(50% 0.15 145)' } : {}}>
-                {q.status}
-              </span>
+              {isOwn ? (
+                q.is_public ? (
+                  <span className="pill pill--dot" style={{ color: 'oklch(50% 0.15 145)' }}>
+                    {t('dash.vis_public')}
+                  </span>
+                ) : (
+                  <span className="pill" style={{ color: 'var(--danger-text)', background: 'var(--danger-soft)', borderColor: 'var(--danger-soft-border)' }}>
+                    <Icon name="lock" size={10} />{t('dash.vis_private')}
+                  </span>
+                )
+              ) : (
+                <span className="pill pill--dot" style={q.is_public ? { color: 'oklch(50% 0.15 145)' } : {}}>
+                  {q.status}
+                </span>
+              )}
             </div>
             <div className="qlc-meta mono" style={{ fontSize: 13 }}>{q.questions}</div>
             <div className="qlc-meta mono" style={{ fontSize: 13 }}>{q.plays.toLocaleString()}</div>
@@ -664,7 +802,16 @@ function QuizListView({ quizzes, myUsername, onOpen, onPlay, onRunLive, onDelete
               {isOwn && <>
                 <Tooltip label={t('dash.run_live')}><button className="btn btn--ghost btn--icon" onClick={() => onRunLive(q.id)}><Icon name="bolt" size={14} /></button></Tooltip>
                 <Tooltip label={t('dash.edit')}><button className="btn btn--ghost btn--icon" onClick={() => onOpen(q.id)}><Icon name="edit" size={14} /></button></Tooltip>
-                <Tooltip label={t('dash.delete')}><button className="btn btn--ghost btn--icon" style={{ color: 'oklch(55% 0.18 25)' }} onClick={() => onDelete(q)}><Icon name="trash" size={14} /></button></Tooltip>
+                <Tooltip label={q.is_public ? t('dash.make_private') : t('dash.make_public')}>
+                  <button
+                    className="btn btn--ghost btn--icon"
+                    style={!q.is_public ? { color: 'var(--danger-text)' } : {}}
+                    onClick={() => onTogglePublic(q)}
+                  >
+                    <Icon name={q.is_public ? 'globe' : 'lock'} size={14} />
+                  </button>
+                </Tooltip>
+                <Tooltip label={t('dash.delete')}><button className="btn btn--ghost btn--icon" style={{ color: 'var(--danger-text)' }} onClick={() => onDelete(q)}><Icon name="trash" size={14} /></button></Tooltip>
               </>}
               <Tooltip label={t('dash.duplicate')}><button className="btn btn--ghost btn--icon" onClick={() => onDuplicate(q)}><Icon name="copy" size={14} /></button></Tooltip>
             </div>

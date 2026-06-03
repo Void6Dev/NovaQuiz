@@ -25,6 +25,8 @@ const ROUTES = {
   profile:   'profile.html',
 };
 
+var _navTimer = null;
+
 function navigate(screen, params) {
   let url = ROUTES[screen];
   if (!url) {
@@ -37,8 +39,35 @@ function navigate(screen, params) {
     ).toString();
     url += (url.includes('?') ? '&' : '?') + qs;
   }
-  window.location.href = url;
+  if (document.body.classList.contains('reduce-motion')) {
+    window.location.href = url;
+    return;
+  }
+  const target = document.querySelector('.page, .editor');
+  if (target) {
+    target.style.animation = 'pageLeave 150ms ease forwards';
+    target.style.pointerEvents = 'none';
+    if (_navTimer) clearTimeout(_navTimer);
+    _navTimer = setTimeout(() => { _navTimer = null; window.location.href = url; }, 150);
+  } else {
+    window.location.href = url;
+  }
 }
+
+// When page is restored from bfcache (browser back/forward), clear the leave-animation
+// that was in progress at navigation time — without this the page stays at opacity:0.
+window.addEventListener('pageshow', function(e) {
+  if (!e.persisted) return;
+  if (_navTimer) { clearTimeout(_navTimer); _navTimer = null; }
+  var target = document.querySelector('.page, .editor');
+  if (target) { target.style.animation = ''; target.style.pointerEvents = ''; }
+});
+
+// Cancel any pending navigation timer when the page is being unloaded,
+// so it can't fire on an already-gone page or after a bfcache restore.
+window.addEventListener('pagehide', function() {
+  if (_navTimer) { clearTimeout(_navTimer); _navTimer = null; }
+});
 
 function getQueryParams() {
   const params = {};

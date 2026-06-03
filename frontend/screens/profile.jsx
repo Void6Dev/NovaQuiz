@@ -202,25 +202,25 @@ function StrongestTopics({ topics = [], loading }) {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {top.map(t => {
-            const info = window.TOPIC_BY_CODE[t.topic] || { hue: 200 };
+          {top.map(topic => {
+            const info = window.TOPIC_BY_CODE[topic.topic] || { hue: 200 };
             const bar  = `oklch(65% 0.17 ${info.hue})`;
             return (
-              <div key={t.topic}>
+              <div key={topic.topic}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 500 }}>
                     <span style={{
                       width: 7, height: 7, borderRadius: 99,
                       background: bar, display: 'inline-block', flexShrink: 0,
                     }} />
-                    {t.label}
-                    <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>{t.total}q</span>
+                    {topic.label}
+                    <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>{topic.total}q</span>
                   </div>
-                  <span className="mono" style={{ fontSize: 13, fontWeight: 600 }}>{t.accuracy}%</span>
+                  <span className="mono" style={{ fontSize: 13, fontWeight: 600 }}>{topic.accuracy}%</span>
                 </div>
                 <div style={{ height: 4, background: 'var(--bg-2)', borderRadius: 99, overflow: 'hidden' }}>
                   <div style={{
-                    height: '100%', width: t.accuracy + '%',
+                    height: '100%', width: topic.accuracy + '%',
                     background: bar, borderRadius: 99,
                     transition: 'width 700ms var(--ease)',
                   }} />
@@ -307,8 +307,28 @@ function ProfilePage({ onNav }) {
 
   useEffect(() => {
     window.API.get('/profile/stats/')
-      .then(data => { setStats(data); setLoading(false); })
-      .catch(err  => { setError(err.message); setLoading(false); });
+      .then(data => {
+        setStats(data);
+        setLoading(false);
+        try {
+          const seen = new Set(JSON.parse(localStorage.getItem('nq:seen_achievements') || '[]'));
+          const fresh = (data.achievements || []).filter(a => a.unlocked && !seen.has(a.id));
+          if (fresh.length > 0) {
+            fresh.forEach((a, i) => {
+              setTimeout(() => {
+                window.showAchievementToast(
+                  window.t('prof.ach_' + a.id) || a.name,
+                  window.t('prof.ach_d_' + a.id) || a.desc
+                );
+              }, i * 1400);
+            });
+            localStorage.setItem('nq:seen_achievements', JSON.stringify(
+              [...seen, ...fresh.map(a => a.id)]
+            ));
+          }
+        } catch {}
+      })
+      .catch(err => { setError(err.message); setLoading(false); });
   }, []);
 
   const initials = (u.name || u.username || '?')
@@ -330,10 +350,9 @@ function ProfilePage({ onNav }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
           {/* Avatar */}
           {u.avatar ? (
-            <img src={u.avatar} alt="" style={{
-              width: 72, height: 72, borderRadius: 999,
-              objectFit: 'cover', flexShrink: 0,
-            }} />
+            <div style={{ width: 72, height: 72, borderRadius: 999, overflow: 'hidden', flexShrink: 0, position: 'relative' }}>
+              <div style={window.applyImageTransform(u.avatar, window.API.parseTransform(u.avatar_transform), 1)} />
+            </div>
           ) : (
             <div style={{
               width: 72, height: 72, borderRadius: 999,

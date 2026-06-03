@@ -2,7 +2,7 @@
 const TOPICS = [
   { code: 'GK', label: 'General Knowledge', hue: 200 },
   { code: 'MV', label: 'Movies & TV',       hue: 0   },
-  { code: 'VG', label: 'Video Games',       hue: 270 },
+  { code: 'VG', label: 'Video Games',       hue: 260 },
   { code: 'MU', label: 'Music',             hue: 320 },
   { code: 'SC', label: 'Science & Nature',  hue: 145 },
   { code: 'HS', label: 'History & Culture', hue: 35  },

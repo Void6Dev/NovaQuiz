@@ -8,19 +8,27 @@
     return m ? decodeURIComponent(m[1]) : '';
   }
 
-  function call(method, path, body) {
+  async function call(method, path, body) {
     var opts = {
       method: method,
       credentials: 'include',
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
     };
     if (body != null) opts.body = JSON.stringify(body);
-    return fetch(BASE + path, opts).then(function (res) {
-      return res.json().then(function (data) {
-        if (!res.ok) throw new Error(data.error || 'Server error (' + res.status + ')');
-        return data;
-      });
-    });
+    const res = await fetch(BASE + path, opts);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Server error (' + res.status + ')');
+    return data;
+  }
+
+  // Parse image transform JSON — new format {x,y,z,r}; returns null for missing/old data
+  function parseTransform(raw) {
+    if (!raw) return null;
+    try {
+      var p = JSON.parse(raw);
+      if (!p || typeof p !== 'object' || p.z === undefined) return null;
+      return { x: p.x || 0, y: p.y || 0, z: p.z || 1, r: p.r || 0 };
+    } catch (e) { return null; }
   }
 
   // Backend Quiz → Frontend quiz card shape
@@ -34,8 +42,10 @@
       avgScore: null,
       lastEdited: q.created_at ? new Date(q.created_at).toLocaleDateString('ru-RU') : '—',
       topic: q.topic,
-      status: 'live',
+      is_public: q.is_public !== undefined ? q.is_public : true,
+      status: q.is_public ? 'live' : 'draft',
       image: q.image || null,
+      coverTransform: parseTransform(q.cover_transform),
       creator: { username: q.creator, name: q.creator },
     };
   }
@@ -56,6 +66,8 @@
       shuffleOptions: q.shuffle_options || false,
       imageUrl: q.image_url || (q.image || ''),
       answer: q.correct_answer || '',
+      explanation: q.explanation || '',
+      imageTransform: parseTransform(q.image_transform),
       options: answers.map(function (a) {
         return { id: a.id, text: a.text, correct: a.is_correct };
       }),
@@ -113,5 +125,6 @@
     fromBackendQuiz: fromBackendQuiz,
     fromBackendQuestion: fromBackendQuestion,
     fromBackendSession: fromBackendSession,
+    parseTransform: parseTransform,
   };
 })();

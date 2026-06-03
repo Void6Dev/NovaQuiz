@@ -17,6 +17,7 @@ class Quiz(models.Model):
         CARTOON = 'CT', 'Cartoons'
 
     title = models.CharField(max_length=50)
+    is_public = models.BooleanField(default=True)
     topic = models.CharField(
         max_length=10,
         choices=Topic.choices,
@@ -25,12 +26,18 @@ class Quiz(models.Model):
     description = models.TextField(null=True, blank=True)
     image = models.ImageField(upload_to="quiz_images/", null=True, blank=True)
     creator = models.ForeignKey(User, on_delete=models.CASCADE)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at      = models.DateTimeField(auto_now_add=True)
+    image_transform = models.TextField(blank=True, default='')
 
     def __str__(self):
         return f"{self.title} ({self.get_topic_display()})"
 
 class Question(models.Model):
+    class Type(models.TextChoices):
+        SINGLE   = 'single',   'Single choice'
+        MULTIPLE = 'multiple', 'Multiple choice'
+        TEXT     = 'text',     'Text answer'
+
     quiz = models.ForeignKey(Quiz, related_name='questions', on_delete=models.CASCADE)
     text = models.TextField(blank=True)
     image = models.ImageField(upload_to="quiz_questions_images/", null=True, blank=True)
@@ -39,8 +46,10 @@ class Question(models.Model):
     points = models.PositiveSmallIntegerField(default=100)
     order = models.PositiveIntegerField(default=0)
     shuffle_options = models.BooleanField(default=False)
-    question_type = models.CharField(max_length=10, default='single')
+    question_type = models.CharField(max_length=10, choices=Type.choices, default=Type.SINGLE)
     correct_answer = models.TextField(blank=True, default='')
+    explanation      = models.TextField(blank=True, default='')
+    image_transform  = models.TextField(blank=True, default='')
 
     class Meta:
         ordering = ['order', 'id']

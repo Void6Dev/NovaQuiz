@@ -2,7 +2,7 @@
 function Auth({ mode: initialMode = 'login', onSuccess, onSwitch }) {
   const [mode, setMode] = useState(initialMode);
   return (
-    <div className="auth-page" data-screen-label={mode === 'login' ? '00 Login' : '00 Register'}>
+    <div className="auth-page" {...screenLabel(mode === 'login' ? '00 Login' : '00 Register')}>
       <div className="auth-left">
         <div className="auth-brand">
           <NQLogo size={32} />
@@ -10,10 +10,13 @@ function Auth({ mode: initialMode = 'login', onSuccess, onSwitch }) {
         </div>
         <div className="auth-card">
           {mode === 'login'
-            ? <LoginForm onSuccess={onSuccess} onSwitch={() => setMode('register')} />
-            : <RegisterForm onSuccess={onSuccess} onSwitch={() => setMode('login')} />}
+            ? <LoginForm onSuccess={onSuccess} onSwitch={() => setMode('register')} onForgot={() => setMode('forgot')} />
+            : mode === 'register'
+            ? <RegisterForm onSuccess={onSuccess} onSwitch={() => setMode('login')} />
+            : <ForgotPasswordForm onBack={() => setMode('login')} />}
         </div>
         <SiteFooter variant="compact" />
+        <FormStyles />
       </div>
 
       <div className="auth-right">
@@ -54,9 +57,9 @@ function Auth({ mode: initialMode = 'login', onSuccess, onSwitch }) {
   );
 }
 
-function LoginForm({ onSuccess, onSwitch }) {
+function LoginForm({ onSuccess, onSwitch, onForgot }) {
   window.useLang();
-  const [username, setUsername] = useState('alex');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPwd, setShowPwd] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -99,7 +102,7 @@ function LoginForm({ onSuccess, onSwitch }) {
       </FormField>
 
       <FormField label={t('auth.password')} trailing={
-        <a onClick={() => {}} style={{ fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer' }}>{t('auth.forgot')}</a>
+        <a onClick={onForgot} style={{ fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer' }}>{t('auth.forgot')}</a>
       }>
         <div style={{ position: 'relative' }}>
           <input
@@ -131,11 +134,9 @@ function LoginForm({ onSuccess, onSwitch }) {
         <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
       </div>
 
-      <button type="button" className="btn btn--secondary btn--lg" style={{ width: '100%' }}>
+      <button type="button" className="btn btn--secondary btn--lg" style={{ width: '100%' }} onClick={() => window.navigate('player')}>
         {t('auth.guest')}
       </button>
-
-      <FormStyles />
     </form>
   );
 }
@@ -230,7 +231,6 @@ function RegisterForm({ onSuccess, onSwitch }) {
       <button type="submit" className="btn btn--primary btn--lg" disabled={submitting} style={{ width: '100%' }}>
         {submitting ? t('auth.creating') : <>{t('auth.create')} <Icon name="arrowRight" size={14} /></>}
       </button>
-      <FormStyles />
     </form>
   );
 }
@@ -377,4 +377,168 @@ function FloatingCard({ children, rotate = 0, offset = [0, 0], compact }) {
   );
 }
 
+function ForgotPasswordForm({ onBack }) {
+  window.useLang();
+  const [email, setEmail] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (!email.trim()) return setError(t('auth.err_email'));
+    setSubmitting(true);
+    try {
+      await window.API.post('/auth/forgot-password/', { email });
+      setSent(true);
+    } catch (err) {
+      setSent(true); // intentionally show success to avoid email enumeration
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (sent) {
+    return (
+      <div className="fade-in" style={{ textAlign: 'center', paddingTop: 16 }}>
+        <div style={{ width: 56, height: 56, borderRadius: 999, background: 'oklch(90% 0.10 145)', display: 'grid', placeItems: 'center', margin: '0 auto 20px' }}>
+          <Icon name="check" size={24} style={{ color: 'oklch(45% 0.18 145)' }} />
+        </div>
+        <h1 style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em', marginBottom: 10 }}>
+          {t('auth.forgot_sent')}
+        </h1>
+        <p style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: 32 }}>
+          {t('auth.forgot_sent_sub')}
+        </p>
+        <a onClick={onBack} style={{ fontSize: 13, color: 'var(--text-muted)', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}>
+          {t('auth.forgot_back')}
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={submit} className="fade-in">
+      <h1 style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-0.03em', marginBottom: 8 }}>
+        {t('auth.forgot_title')}
+      </h1>
+      <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 32, lineHeight: 1.5 }}>
+        {t('auth.forgot_sub')}
+      </p>
+
+      <FormField label={t('auth.email')}>
+        <input
+          autoFocus
+          className="input input--lg"
+          type="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          placeholder="you@example.com"
+          autoComplete="email"
+        />
+      </FormField>
+
+      {error && <div className="form-error">{error}</div>}
+
+      <button type="submit" className="btn btn--primary btn--lg" disabled={submitting} style={{ width: '100%', marginTop: 8 }}>
+        {submitting ? t('auth.forgot_sending') : t('auth.forgot_send')}
+      </button>
+
+      <div style={{ textAlign: 'center', marginTop: 20 }}>
+        <a onClick={onBack} style={{ fontSize: 13, color: 'var(--text-muted)', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}>
+          {t('auth.forgot_back')}
+        </a>
+      </div>
+    </form>
+  );
+}
+
+function ResetPasswordForm({ token }) {
+  window.useLang();
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (password.length < 8) return setError(t('auth.reset_short'));
+    if (password !== confirm) return setError(t('auth.reset_mismatch'));
+    setSubmitting(true);
+    try {
+      await window.API.post('/auth/reset-password/', { token, new_password: password });
+      setDone(true);
+    } catch (err) {
+      setError(err.message || t('auth.reset_bad_token'));
+      setSubmitting(false);
+    }
+  };
+
+  if (done) {
+    return (
+      <div className="fade-in" style={{ textAlign: 'center', paddingTop: 16 }}>
+        <div style={{ width: 56, height: 56, borderRadius: 999, background: 'oklch(90% 0.10 145)', display: 'grid', placeItems: 'center', margin: '0 auto 20px' }}>
+          <Icon name="check" size={24} style={{ color: 'oklch(45% 0.18 145)' }} />
+        </div>
+        <h1 style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em', marginBottom: 10 }}>
+          {t('auth.reset_title')}
+        </h1>
+        <p style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: 32 }}>
+          {t('auth.reset_ok')}
+        </p>
+        <a href="/auth.html" className="btn btn--primary btn--lg" style={{ display: 'inline-block' }}>
+          {t('auth.sign_in')}
+        </a>
+        <FormStyles />
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={submit} className="fade-in">
+      <h1 style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-0.03em', marginBottom: 8 }}>
+        {t('auth.reset_title')}
+      </h1>
+      <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 32 }}>
+        {t('auth.reset_sub')}
+      </p>
+
+      <FormField label={t('auth.reset_new_pw')}>
+        <input
+          autoFocus
+          className="input input--lg"
+          type="password"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          placeholder="••••••••"
+          autoComplete="new-password"
+        />
+        {password && <PasswordStrength strength={passwordStrength(password)} />}
+      </FormField>
+
+      <FormField label={t('auth.reset_confirm_pw')}>
+        <input
+          className="input input--lg"
+          type="password"
+          value={confirm}
+          onChange={e => setConfirm(e.target.value)}
+          placeholder="••••••••"
+          autoComplete="new-password"
+        />
+      </FormField>
+
+      {error && <div className="form-error">{error}</div>}
+
+      <button type="submit" className="btn btn--primary btn--lg" disabled={submitting} style={{ width: '100%', marginTop: 8 }}>
+        {submitting ? t('auth.reset_saving') : t('auth.reset_save')}
+      </button>
+      <FormStyles />
+    </form>
+  );
+}
+
 window.Auth = Auth;
+window.ResetPasswordForm = ResetPasswordForm;

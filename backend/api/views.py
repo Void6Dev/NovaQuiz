@@ -3,17 +3,25 @@ from datetime import date as date_type
 from functools import wraps
 from django.http import JsonResponse
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
+from django.utils import timezone
 from django.contrib.auth.models import User
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.shortcuts import get_object_or_404
+import secrets
+from django.core.cache import cache
+from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
+from django.core.validators import validate_email
 from django.conf import settings
 
 from datetime import date as _date, timedelta
-from django.db.models import Sum
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
+from django.db import transaction
+from django.db.models import Count, F, Q, Sum
 
-from auth_sys.models import Account, WorkspaceInvitation
+from auth_sys.models import Account, PasswordResetToken, WorkspaceInvitation
 from quiz.models import Quiz, Question, Answer, PracticeRecord, UserStat, ActivityEntry, TopicStat
 from hosting.models import Session, SessionPlayer, PlayerAnswer
 
@@ -48,10 +56,12 @@ def _user_data(user):
         'description': account.description if account else '',
         'birthday': account.birthday_day.isoformat() if account and account.birthday_day else '',
         'avatar': account.image.url if account and account.image else None,
+        'avatar_transform': account.image_transform if account else '',
     }
 
 
 def _quiz_data(quiz):
+    qcount = getattr(quiz, 'question_count', None)
     return {
         'id': quiz.id,
         'title': quiz.title,
@@ -59,9 +69,11 @@ def _quiz_data(quiz):
         'topic_display': quiz.get_topic_display(),
         'description': quiz.description or '',
         'image': quiz.image.url if quiz.image else None,
+        'cover_transform': quiz.image_transform or '',
         'creator': quiz.creator.username,
         'created_at': quiz.created_at.isoformat(),
-        'question_count': quiz.questions.count(),
+        'question_count': qcount if qcount is not None else quiz.questions.count(),
+        'is_public': quiz.is_public,
     }
 
 
@@ -77,6 +89,8 @@ def _question_data(q):
         'points': q.points,
         'order': q.order,
         'shuffle_options': q.shuffle_options,
+        'explanation': q.explanation or '',
+        'image_transform': q.image_transform or '',
         'answers': [
             {
                 'id': a.id,
@@ -107,11 +121,44 @@ def _session_data(s):
     }
 
 
+def _ws_broadcast(session_id, payload):
+    layer = get_channel_layer()
+    if layer is None:
+        return
+    async_to_sync(layer.group_send)(
+        f'session_{session_id}',
+        {'type': 'session.event', 'payload': payload},
+    )
+
+
+_LOGIN_MAX_ATTEMPTS = 10
+_LOGIN_WINDOW = 60 * 15  # 15 minutes
+
+
+def _get_client_ip(request):
+    forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
+    if forwarded:
+        return forwarded.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR', '')
+
+
+def _check_login_rate_limit(request):
+    ip = _get_client_ip(request)
+    key = f'login_ratelimit:{ip}'
+    attempts = cache.get(key, 0)
+    if attempts >= _LOGIN_MAX_ATTEMPTS:
+        return True
+    cache.set(key, attempts + 1, _LOGIN_WINDOW)
+    return False
+
+
 # ─── AUTH ───────────────────────────────────────────────────────────────────
 
 @csrf_exempt
 @require_http_methods(['POST'])
 def api_login(request):
+    if _check_login_rate_limit(request):
+        return JsonResponse({'error': 'Too many login attempts. Try again later.'}, status=429)
     data = _json_body(request)
     user = authenticate(request, username=data.get('username'), password=data.get('password'))
     if user is None:
@@ -214,13 +261,82 @@ def api_delete_account(request):
 
 
 @csrf_exempt
+@require_http_methods(['POST'])
+def api_forgot_password(request):
+    data = _json_body(request)
+    email = data.get('email', '').strip().lower()
+    # Always return 200 to prevent email enumeration
+    try:
+        user = User.objects.get(email__iexact=email)
+    except User.DoesNotExist:
+        return JsonResponse({'status': 'ok'})
+
+    token_obj = PasswordResetToken(user=user)
+    token_obj.save()
+
+    reset_url = f"{request.scheme}://{request.get_host()}/reset-password.html?token={token_obj.token}"
+    try:
+        send_mail(
+            subject='Nova Quiz — Password Reset',
+            message=f'Hi {user.username},\n\nClick the link below to reset your password (valid 1 hour):\n{reset_url}\n\nIf you did not request this, ignore this email.\n\n— Nova Quiz Team',
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[email],
+            fail_silently=True,
+        )
+    except Exception:
+        pass
+    return JsonResponse({'status': 'ok'})
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def api_reset_password(request):
+    data = _json_body(request)
+    raw_token = data.get('token', '').strip()
+    new_password = data.get('new_password', '')
+
+    if not raw_token:
+        return JsonResponse({'error': 'Token is required'}, status=400)
+    if len(new_password) < 6:
+        return JsonResponse({'error': 'Password must be at least 6 characters'}, status=400)
+
+    try:
+        token_obj = PasswordResetToken.objects.select_related('user').get(token=raw_token)
+    except PasswordResetToken.DoesNotExist:
+        return JsonResponse({'error': 'Invalid or expired token'}, status=400)
+
+    if not token_obj.is_valid:
+        return JsonResponse({'error': 'Invalid or expired token'}, status=400)
+
+    token_obj.used = True
+    token_obj.save(update_fields=['used'])
+
+    user = token_obj.user
+    user.set_password(new_password)
+    user.save()
+    return JsonResponse({'status': 'ok'})
+
+
+_MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5 MB
+
+
+def _validate_image(f):
+    if not f:
+        return 'No file provided'
+    if not f.content_type.startswith('image/'):
+        return 'File must be an image'
+    if f.size > _MAX_IMAGE_SIZE:
+        return 'Image must be smaller than 5 MB'
+    return None
+
+
+@csrf_exempt
 @login_required
 def api_avatar_upload(request):
     f = request.FILES.get('avatar')
-    if not f:
-        return JsonResponse({'error': 'No file provided'}, status=400)
-    if not f.content_type.startswith('image/'):
-        return JsonResponse({'error': 'File must be an image'}, status=400)
+    err = _validate_image(f)
+    if err:
+        return JsonResponse({'error': err}, status=400)
     account = getattr(request.user, 'account', None)
     if not account:
         return JsonResponse({'error': 'Account not found'}, status=404)
@@ -229,11 +345,19 @@ def api_avatar_upload(request):
     return JsonResponse({'avatar': account.image.url})
 
 
-# ─── WORKSPACE ──────────────────────────────────────────────────────────────
+@csrf_exempt
+@login_required
+def api_avatar_transform(request):
+    account = getattr(request.user, 'account', None)
+    if not account:
+        return JsonResponse({'error': 'Account not found'}, status=404)
+    data = _json_body(request)
+    account.image_transform = data.get('transform', '') or ''
+    account.save()
+    return JsonResponse({'avatar_transform': account.image_transform})
 
-import secrets
-from django.core.validators import validate_email
-from django.core.exceptions import ValidationError
+
+# ─── WORKSPACE ──────────────────────────────────────────────────────────────
 
 def _validate_email(email):
     """Validate email format and return error message if invalid."""
@@ -260,8 +384,8 @@ def api_workspace_invite(request):
     if err:
         return JsonResponse({'error': err}, status=400)
 
-    # Cannot invite yourself
-    if email == request.user.email:
+    # Cannot invite yourself (skip check if user has no email set)
+    if request.user.email and email == request.user.email:
         return JsonResponse({'error': 'Cannot invite yourself'}, status=400)
 
     # Check if already invited (don't spam same email)
@@ -273,15 +397,12 @@ def api_workspace_invite(request):
     if existing.exists():
         return JsonResponse({'error': f'Already invited {email}. Pending response.'}, status=400)
 
-    # Generate unique token for this invitation
-    token = secrets.token_urlsafe(32)
-
-    # Create or update invitation
+    # Create or update invitation (token is auto-generated in model.save())
     try:
         inv, created = WorkspaceInvitation.objects.update_or_create(
             from_user=request.user,
             to_email=email,
-            defaults={'status': 'pending', 'token': token}
+            defaults={'status': 'pending', 'token': secrets.token_urlsafe(32)}
         )
     except Exception as e:
         return JsonResponse({'error': f'Failed to create invitation: {str(e)}'}, status=500)
@@ -427,7 +548,7 @@ def api_workspace_cancel_invite(request, invite_id):
 # ─── QUIZZES ────────────────────────────────────────────────────────────────
 
 def api_quiz_list(request):
-    qs = Quiz.objects.all().order_by('-created_at')
+    qs = Quiz.objects.annotate(question_count=Count('questions')).order_by('-created_at')
     topic = request.GET.get('topic')
     creator = request.GET.get('creator')
     if request.GET.get('mine') == '1':
@@ -442,10 +563,32 @@ def api_quiz_list(request):
         ).values_list('from_user', flat=True)
         qs = qs.filter(creator__in=workspace_owners)
     elif creator:
-        qs = qs.filter(creator__username__icontains=creator)
+        qs = qs.filter(creator__username__icontains=creator, is_public=True)
+    else:
+        qs = qs.filter(is_public=True)
     if topic:
         qs = qs.filter(topic=topic)
-    return JsonResponse({'quizzes': [_quiz_data(q) for q in qs]})
+    search = request.GET.get('search', '').strip()
+    if search:
+        qs = qs.filter(Q(title__icontains=search) | Q(description__icontains=search))
+
+    try:
+        page = max(1, int(request.GET.get('page', 1)))
+        page_size = min(max(1, int(request.GET.get('page_size', 20))), 100)
+    except (ValueError, TypeError):
+        page, page_size = 1, 20
+
+    total = qs.count()
+    offset = (page - 1) * page_size
+    quizzes = qs[offset:offset + page_size]
+
+    return JsonResponse({
+        'quizzes': [_quiz_data(q) for q in quizzes],
+        'total': total,
+        'page': page,
+        'page_size': page_size,
+        'has_next': (offset + page_size) < total,
+    })
 
 
 @csrf_exempt
@@ -458,13 +601,22 @@ def api_quiz_create(request):
         title=data.get('title', 'Untitled quiz'),
         topic=data.get('topic', Quiz.Topic.GENERAL_KNOWLEDGE),
         description=data.get('description', ''),
+        is_public=bool(data.get('is_public', True)),
         creator=request.user,
     )
     return JsonResponse(_quiz_data(quiz), status=201)
 
 
 def api_quiz_detail(request, quiz_id):
-    quiz = get_object_or_404(Quiz, id=quiz_id)
+    quiz = get_object_or_404(Quiz.objects.annotate(question_count=Count('questions')), id=quiz_id)
+    if not quiz.is_public and quiz.creator != getattr(request, 'user', None):
+        if not request.user.is_authenticated:
+            return JsonResponse({'error': 'Access denied'}, status=403)
+        is_workspace_member = WorkspaceInvitation.objects.filter(
+            from_user=quiz.creator, to_email=request.user.email, status='accepted'
+        ).exists()
+        if not is_workspace_member:
+            return JsonResponse({'error': 'Access denied'}, status=403)
     data = _quiz_data(quiz)
     data['questions'] = [_question_data(q) for q in quiz.questions.all()]
     return JsonResponse(data)
@@ -480,6 +632,10 @@ def api_quiz_update(request, quiz_id):
     for field in ('title', 'topic', 'description'):
         if field in data:
             setattr(quiz, field, data[field])
+    if 'is_public' in data:
+        quiz.is_public = bool(data['is_public'])
+    if 'cover_transform' in data:
+        quiz.image_transform = data['cover_transform'] or ''
     quiz.save()
     return JsonResponse(_quiz_data(quiz))
 
@@ -551,17 +707,16 @@ def api_quiz_practice(request, quiz_id):
     stat.questions_total += total_qs
     stat.save()
 
-    # Daily activity entry
-    try:
-        entry = ActivityEntry.objects.get(user=request.user, date=today)
-        entry.xp        += xp_earned
-        entry.questions += total_qs
-        entry.quizzes   += 1
-        entry.save()
-    except ActivityEntry.DoesNotExist:
-        ActivityEntry.objects.create(
-            user=request.user, date=today,
-            xp=xp_earned, questions=total_qs, quizzes=1,
+    # Daily activity entry — get_or_create then atomic F() increment to avoid race conditions
+    entry, created = ActivityEntry.objects.get_or_create(
+        user=request.user, date=today,
+        defaults={'xp': xp_earned, 'questions': total_qs, 'quizzes': 1},
+    )
+    if not created:
+        ActivityEntry.objects.filter(pk=entry.pk).update(
+            xp=F('xp') + xp_earned,
+            questions=F('questions') + total_qs,
+            quizzes=F('quizzes') + 1,
         )
 
     # Topic stat
@@ -608,10 +763,9 @@ def api_quiz_image_upload(request, quiz_id):
     if quiz.creator != request.user:
         return JsonResponse({'error': 'Access denied'}, status=403)
     f = request.FILES.get('image')
-    if not f:
-        return JsonResponse({'error': 'No file provided'}, status=400)
-    if not f.content_type.startswith('image/'):
-        return JsonResponse({'error': 'File must be an image'}, status=400)
+    err = _validate_image(f)
+    if err:
+        return JsonResponse({'error': err}, status=400)
     quiz.image = f
     quiz.save()
     return JsonResponse({'image': quiz.image.url})
@@ -637,6 +791,8 @@ def api_question_create(request, quiz_id):
         points=data.get('points', 100),
         question_type=data.get('question_type', 'single'),
         correct_answer=data.get('correct_answer', ''),
+        explanation=data.get('explanation', ''),
+        image_transform=data.get('image_transform', ''),
     )
     for ans in data.get('answers', []):
         Answer.objects.create(
@@ -675,6 +831,12 @@ def api_question_update(request, quiz_id, question_id):
         changed = True
     if 'correct_answer' in data:
         question.correct_answer = data['correct_answer']
+        changed = True
+    if 'explanation' in data:
+        question.explanation = data['explanation']
+        changed = True
+    if 'image_transform' in data:
+        question.image_transform = data['image_transform'] or ''
         changed = True
     if changed:
         question.save()
@@ -727,10 +889,9 @@ def api_question_image_upload(request, quiz_id, question_id):
     if question.quiz.creator != request.user:
         return JsonResponse({'error': 'Access denied'}, status=403)
     f = request.FILES.get('image')
-    if not f:
-        return JsonResponse({'error': 'No file provided'}, status=400)
-    if not f.content_type.startswith('image/'):
-        return JsonResponse({'error': 'File must be an image'}, status=400)
+    err = _validate_image(f)
+    if err:
+        return JsonResponse({'error': err}, status=400)
     question.image = f
     question.save()
     return JsonResponse({'image': question.image.url})
@@ -740,7 +901,7 @@ def api_question_image_upload(request, quiz_id, question_id):
 
 @login_required
 def api_session_list(request):
-    sessions = Session.objects.filter(is_active=True).order_by('-created_at')
+    sessions = Session.objects.filter(has_ended=False).select_related('host', 'session').order_by('-created_at')
     return JsonResponse({'sessions': [_session_data(s) for s in sessions]})
 
 
@@ -759,7 +920,7 @@ def api_session_detail(request, session_id):
     data = _session_data(session)
     data['players'] = [
         {'user_id': p.user_id, 'username': p.user.username, 'score': p.score, 'is_kicked': p.is_kicked}
-        for p in session.players.filter(is_kicked=False)
+        for p in session.players.filter(is_kicked=False).select_related('user')
     ]
     return JsonResponse(data)
 
@@ -770,7 +931,7 @@ def api_session_join(request):
     data = _json_body(request)
     code = data.get('code', '').upper()
     try:
-        session = Session.objects.get(code=code, is_active=True, has_started=False)
+        session = Session.objects.get(code=code, has_ended=False, has_started=False)
     except Session.DoesNotExist:
         return JsonResponse({'error': 'Session not found or already started'}, status=404)
 
@@ -780,6 +941,11 @@ def api_session_join(request):
         return JsonResponse({'error': 'Session is full'}, status=400)
 
     SessionPlayer.objects.create(session=session, user=request.user)
+    _ws_broadcast(session.id, {
+        'type': 'player.joined',
+        'username': request.user.username,
+        'player_count': session.players.filter(is_kicked=False).count(),
+    })
     return JsonResponse(_session_data(session))
 
 
@@ -796,6 +962,7 @@ def api_session_start(request, session_id):
         session.max_players = int(data['max_players'])
     session.has_started = True
     session.save()
+    _ws_broadcast(session.id, {'type': 'session.started'})
     return JsonResponse({'status': 'ok'})
 
 
@@ -805,14 +972,14 @@ def api_session_question_status(request, session_id, question_id):
     question = get_object_or_404(Question, id=question_id, quiz=session.session)
     answers = PlayerAnswer.objects.filter(session=session, question=question)
     total_players = session.players.filter(is_kicked=False).count()
-    dist = []
-    for ans in question.answers.all():
-        dist.append({
-            'id': ans.id,
-            'text': ans.text,
-            'is_correct': ans.is_correct,
-            'count': answers.filter(answer=ans).count(),
-        })
+    count_map = {
+        row['answer_id']: row['cnt']
+        for row in answers.values('answer_id').annotate(cnt=Count('id'))
+    }
+    dist = [
+        {'id': a.id, 'text': a.text, 'is_correct': a.is_correct, 'count': count_map.get(a.id, 0)}
+        for a in question.answers.all()
+    ]
     return JsonResponse({
         'answered': answers.values('player').distinct().count(),
         'total': total_players,
@@ -822,27 +989,35 @@ def api_session_question_status(request, session_id, question_id):
 
 @csrf_exempt
 @login_required
+@transaction.atomic
 def api_session_answer(request, session_id):
     data = _json_body(request)
     session = get_object_or_404(Session, id=session_id)
     question = get_object_or_404(Question, id=data.get('question_id'))
     answer = get_object_or_404(Answer, id=data.get('answer_id'))
 
+    sp = get_object_or_404(SessionPlayer.objects.select_for_update(), session=session, user=request.user)
+
     if PlayerAnswer.objects.filter(session=session, player=request.user, question=question).exists():
         return JsonResponse({'error': 'You already answered this question'}, status=400)
 
     PlayerAnswer.objects.create(session=session, player=request.user, question=question, answer=answer)
 
-    sp = get_object_or_404(SessionPlayer, session=session, user=request.user)
     if answer.is_correct:
-        sp.score += 1
         is_first = not PlayerAnswer.objects.filter(
             session=session, question=question
         ).exclude(player=request.user).exists()
-        if is_first:
-            sp.score += 1
+        sp.score += 2 if is_first else 1
         sp.save()
 
+    answered = PlayerAnswer.objects.filter(session=session, question=question).values('player').distinct().count()
+    total = session.players.filter(is_kicked=False).count()
+    _ws_broadcast(session.id, {
+        'type': 'player.answered',
+        'question_id': question.id,
+        'answered': answered,
+        'total': total,
+    })
     return JsonResponse({'status': 'ok', 'score': sp.score, 'correct': answer.is_correct})
 
 
@@ -853,7 +1028,13 @@ def api_session_kick(request, session_id):
     if session.host != request.user:
         return JsonResponse({'error': 'Only the host can remove players'}, status=403)
     data = _json_body(request)
-    SessionPlayer.objects.filter(session=session, user_id=data.get('user_id')).update(is_kicked=True)
+    user_id = data.get('user_id')
+    SessionPlayer.objects.filter(session=session, user_id=user_id).update(is_kicked=True)
+    try:
+        kicked_username = User.objects.get(id=user_id).username
+        _ws_broadcast(session.id, {'type': 'player.kicked', 'username': kicked_username})
+    except User.DoesNotExist:
+        pass
     return JsonResponse({'status': 'ok'})
 
 
@@ -864,15 +1045,15 @@ def api_session_end(request, session_id):
     if session.host != request.user:
         return JsonResponse({'error': 'Only the host can end the session'}, status=403)
     session.has_ended = True
-    session.is_active = False
     session.save()
+    _ws_broadcast(session.id, {'type': 'session.ended'})
     return JsonResponse({'status': 'ok'})
 
 
 @login_required
 def api_session_results(request, session_id):
     session = get_object_or_404(Session, id=session_id)
-    players = session.players.filter(is_kicked=False).order_by('-score', 'joined_at')
+    players = session.players.filter(is_kicked=False).select_related('user').order_by('-score', 'joined_at')
     return JsonResponse({
         'session_id': session.id,
         'quiz': session.session.title,
@@ -902,6 +1083,143 @@ _TOPIC_LABELS = {
     'IN': 'Internet & Pop',    'SP': 'Sports',          'LT': 'Literature',
     'LG': 'Logic & Riddles',   'AN': 'Anime',           'CT': 'Cartoons',
 }
+
+
+@login_required
+def api_analytics(request):
+    from django.db.models.functions import TruncDate
+    user = request.user
+    range_param = request.GET.get('range', '7d')
+    today = _date.today()
+
+    if range_param == '7d':
+        period_days = 7
+    elif range_param == '30d':
+        period_days = 30
+    elif range_param == '90d':
+        period_days = 90
+    else:
+        period_days = None
+
+    this_start = (today - timedelta(days=period_days - 1)) if period_days else None
+    prev_start = (today - timedelta(days=period_days * 2 - 1)) if period_days else None
+    prev_end   = (today - timedelta(days=period_days)) if period_days else None
+
+    # All sessions hosted by user
+    all_sessions = Session.objects.filter(host=user)
+    this_sessions = all_sessions.filter(created_at__date__gte=this_start) if this_start else all_sessions
+    prev_sessions = all_sessions.filter(created_at__date__gte=prev_start, created_at__date__lte=prev_end) if period_days else Session.objects.none()
+
+    from django.db.models import Avg
+    total = this_sessions.count()
+    completed = this_sessions.filter(has_ended=True).count()
+    completion_rate = round(completed / total * 100, 1) if total > 0 else 0
+
+    # Player count and avg score in this period
+    players_qs = SessionPlayer.objects.filter(session__in=this_sessions)
+    players_this = players_qs.count()
+    avg_score_val = players_qs.aggregate(avg=Avg('score'))['avg'] or 0
+    avg_score = round(avg_score_val, 1)
+
+    # Sessions per day (this period) → dict keyed by date string
+    by_day_qs = (
+        this_sessions
+        .annotate(day=TruncDate('created_at'))
+        .values('day')
+        .annotate(count=Count('id'))
+        .order_by('day')
+    )
+    by_day_map = {r['day'].isoformat(): r['count'] for r in by_day_qs}
+
+    # Same for prev period
+    prev_by_day_qs = (
+        prev_sessions
+        .annotate(day=TruncDate('created_at'))
+        .values('day')
+        .annotate(count=Count('id'))
+        .order_by('day')
+    )
+    prev_by_day_map = {r['day'].isoformat(): r['count'] for r in prev_by_day_qs}
+
+    # Build aligned arrays (one entry per day in period)
+    this_arr, prev_arr, labels = [], [], []
+    if period_days:
+        for i in range(period_days):
+            d = this_start + timedelta(days=i)
+            p = prev_start + timedelta(days=i) if prev_start else None
+            this_arr.append(by_day_map.get(d.isoformat(), 0))
+            prev_arr.append(prev_by_day_map.get(p.isoformat(), 0) if p else 0)
+            labels.append(d.strftime('%b %d') if period_days > 7 else d.strftime('%a'))
+
+    # Score distribution: bucket players by % correct answers
+    answer_stats = (
+        PlayerAnswer.objects
+        .filter(session__in=this_sessions)
+        .values('player_id')
+        .annotate(
+            total=Count('id'),
+            correct=Count('id', filter=Q(answer__is_correct=True)),
+        )
+        .filter(total__gt=0)
+    )
+    dist_buckets = [0, 0, 0, 0, 0]  # 0-20, 20-40, 40-60, 60-80, 80-100
+    for row in answer_stats:
+        pct = row['correct'] / row['total'] * 100
+        idx = min(int(pct / 20), 4)
+        dist_buckets[idx] += 1
+    score_dist = [
+        {'range': '0–20',   'count': dist_buckets[0]},
+        {'range': '20–40',  'count': dist_buckets[1]},
+        {'range': '40–60',  'count': dist_buckets[2]},
+        {'range': '60–80',  'count': dist_buckets[3]},
+        {'range': '80–100', 'count': dist_buckets[4]},
+    ]
+
+    # Top quizzes (by ended session count, all time for this user)
+    top_q = (
+        Quiz.objects
+        .filter(creator=user)
+        .annotate(session_count=Count('sessions', filter=Q(sessions__has_ended=True)))
+        .filter(session_count__gt=0)
+        .order_by('-session_count')[:5]
+    )
+
+    # Hardest questions (lowest correct rate, min 3 answers, sessions hosted by user)
+    q_stats = (
+        PlayerAnswer.objects
+        .filter(session__host=user)
+        .values('question_id', 'question__text')
+        .annotate(
+            total=Count('id'),
+            correct=Count('id', filter=Q(answer__is_correct=True)),
+        )
+        .filter(total__gte=3)
+        .order_by('correct')[:5]
+    )
+
+    return JsonResponse({
+        'range': range_param,
+        'total_sessions': total,
+        'completion_rate': completion_rate,
+        'players': players_this,
+        'avg_score': avg_score,
+        'this_period': this_arr,
+        'prev_period': prev_arr,
+        'period_labels': labels,
+        'score_dist': score_dist,
+        'top_quizzes': [
+            {'id': q.id, 'title': q.title, 'topic': q.topic, 'session_count': q.session_count}
+            for q in top_q
+        ],
+        'hardest_questions': [
+            {
+                'question': r['question__text'],
+                'total': r['total'],
+                'correct_rate': round(r['correct'] / r['total'] * 100, 1) if r['total'] > 0 else 0,
+            }
+            for r in q_stats
+        ],
+    })
 
 
 @login_required

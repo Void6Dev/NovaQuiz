@@ -11,6 +11,9 @@ urlpatterns = [
     path('auth/change-password/', views.api_change_password),
     path('auth/delete/',          views.api_delete_account),
     path('auth/avatar/',          views.api_avatar_upload),
+    path('auth/avatar/transform/', views.api_avatar_transform),
+    path('auth/forgot-password/', views.api_forgot_password),
+    path('auth/reset-password/',  views.api_reset_password),
 
     # Workspace
     path('workspace/invite/',                           views.api_workspace_invite),
@@ -35,7 +38,8 @@ urlpatterns = [
     path('quizzes/<int:quiz_id>/questions/<int:question_id>/delete/', views.api_question_delete),
     path('quizzes/<int:quiz_id>/questions/<int:question_id>/image/',  views.api_question_image_upload),
 
-    # Profile
+    # Profile & Analytics
+    path('analytics/',     views.api_analytics),
     path('profile/stats/', views.api_profile_stats),
 
     # Sessions

@@ -30,7 +30,7 @@ function SharedWithMe({ onNav }) {
   });
 
   return (
-    <div className="page fade-in" data-screen-label="Shared with me">
+    <div className="page fade-in" {...screenLabel('Shared with me')}>
       <PageHeader title={t('shared.title')} subtitle={t('shared.subtitle')} />
 
       {!loading && quizzes.length === 0 ? (

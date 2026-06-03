@@ -51,7 +51,17 @@ function LiveHost({ onNav }) {
   const [answeredCount, setAnsweredCount] = useState(0);
   const [answerDist, setAnswerDist] = useState([]);
   const [timeLeft, setTimeLeft] = useState(30);
-  const [hostSettings, setHostSettings] = useState({ timePerQuestion: 30, maxPlayers: 20 });
+  const [hostSettings, setHostSettings] = useState(() => {
+    try {
+      const p = JSON.parse(localStorage.getItem('quiz:prefs') || '{}');
+      return {
+        timePerQuestion: parseInt(p.defaultTimePerQuestion, 10) || 30,
+        maxPlayers:      parseInt(p.defaultMaxPlayers, 10)      || 20,
+      };
+    } catch { return { timePerQuestion: 30, maxPlayers: 20 }; }
+  });
+  const wsRef = React.useRef(null);
+  const finishRef = React.useRef(null);
 
   // Create session + load quiz on mount
   useEffect(() => {
@@ -80,7 +90,34 @@ function LiveHost({ onNav }) {
     });
   }, []);
 
-  // Poll real players in lobby every 2.5s
+  // WebSocket connection — opens once session ID is known
+  useEffect(() => {
+    if (!sessionId) return;
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(proto + '//' + location.host + '/ws/sessions/' + sessionId + '/');
+    wsRef.current = ws;
+
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'player.joined' || msg.type === 'player.left') {
+          window.API.get('/sessions/' + sessionIdRef.current + '/')
+            .then(data => setParticipants(data.players || []))
+            .catch(() => {});
+        }
+        if (msg.type === 'player.answered') {
+          setAnsweredCount(msg.answered);
+          if (msg.total > 0 && msg.answered >= msg.total && finishRef.current) {
+            finishRef.current();
+          }
+        }
+      } catch {}
+    };
+    ws.onerror = () => {};
+    return () => { ws.close(); wsRef.current = null; };
+  }, [sessionId]);
+
+  // Poll participants in lobby — 5s fallback (WS handles instant updates)
   useEffect(() => {
     if (phase !== 'lobby' || !sessionIdRef.current) return;
     const poll = () => {
@@ -89,11 +126,11 @@ function LiveHost({ onNav }) {
         .catch(() => {});
     };
     poll();
-    const id = setInterval(poll, 2500);
+    const id = setInterval(poll, 5000);
     return () => clearInterval(id);
   }, [phase]);
 
-  // Question: countdown + poll answer count
+  // Question: countdown + answer poll (3s fallback when WS misses events)
   useEffect(() => {
     if (phase !== 'question' || !sessionIdRef.current) return;
     const q = questionsRef.current[qIdxRef.current];
@@ -108,6 +145,7 @@ function LiveHost({ onNav }) {
       done = true;
       setTimeout(() => setPhase('waiting'), 300);
     };
+    finishRef.current = finish;
 
     const tick = setInterval(() => {
       setTimeLeft(prev => {
@@ -123,9 +161,9 @@ function LiveHost({ onNav }) {
           setAnsweredCount(data.answered);
           if (data.total > 0 && data.answered >= data.total) finish();
         }).catch(() => {});
-    }, 1500);
+    }, 3000);
 
-    return () => { clearInterval(tick); clearInterval(pollId); };
+    return () => { clearInterval(tick); clearInterval(pollId); finishRef.current = null; };
   }, [phase, qIdx, hostSettings.timePerQuestion]);
 
   // Waiting: fetch final distribution + refresh scores, then advance to results
@@ -254,7 +292,7 @@ function LiveHost({ onNav }) {
 
 function LiveLobby({ pin, quizTitle, participants, onStart, onExit, onKick, hostSettings, onHostSettingsChange }) {
   return (
-    <div className="live fade-in" data-screen-label="05a Live lobby">
+    <div className="live fade-in" {...screenLabel('05a Live lobby')}>
       <div className="live__header">
         <button className="btn btn--ghost btn--icon" onClick={onExit}><Icon name="x" size={18} /></button>
         <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>
@@ -381,7 +419,7 @@ function LiveQuestion({ question, idx, total, answered, totalP, timeLeft, timePe
   const pct = totalP > 0 ? (answered / totalP) * 100 : 0;
   const timePct = (timeLeft / timePerQuestion) * 100;
   return (
-    <div className="live fade-in" data-screen-label="05b Live question">
+    <div className="live fade-in" {...screenLabel('05b Live question')}>
       <div className="live__header">
         <button className="btn btn--ghost btn--icon" onClick={onExit}><Icon name="x" size={18} /></button>
         <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
@@ -479,7 +517,7 @@ function LiveResults({ question, answerDist, idx, total, participants, onNext, o
   const top3 = [...participants].sort((a, b) => b.score - a.score).slice(0, 3);
 
   return (
-    <div className="live fade-in" data-screen-label="05d Live results">
+    <div className="live fade-in" {...screenLabel('05d Live results')}>
       <div className="live__header">
         <button className="btn btn--ghost btn--icon" onClick={onExit}><Icon name="x" size={18} /></button>
         <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('live.q_label')}{idx + 1} {t('live.results_label')}</span>
@@ -575,8 +613,16 @@ function LivePodium({ participants, onExit, onAnalytics }) {
   const order = [second, first, third].filter(Boolean);
   const heights = { 1: 220, 0: 160, 2: 120 };
 
+  useEffect(() => {
+    if (top3.length === 0) return;
+    try {
+      const prefs = JSON.parse(localStorage.getItem('quiz:prefs') || '{}');
+      if (prefs.confetti !== false) window.launchConfetti();
+    } catch {}
+  }, []);
+
   return (
-    <div className="live fade-in" data-screen-label="05e Live podium" style={{ background: 'var(--bg-2)' }}>
+    <div className="live fade-in" {...screenLabel('05e Live podium')} style={{ background: 'var(--bg-2)' }}>
       <div className="live__header">
         <button className="btn btn--ghost btn--icon" onClick={onExit}><Icon name="x" size={18} /></button>
         <div style={{ flex: 1 }} />
@@ -723,18 +769,18 @@ function HostSettings({ settings, onChange }) {
           <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>{settings.timePerQuestion}s</span>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
-          {[10, 20, 30, 45, 60, 90].map(t => (
+          {[10, 20, 30, 45, 60, 90].map(sec => (
             <button
-              key={t}
-              onClick={() => onChange({ ...settings, timePerQuestion: t })}
+              key={sec}
+              onClick={() => onChange({ ...settings, timePerQuestion: sec })}
               className="mono"
               style={{
                 flex: 1, padding: '6px 0', fontSize: 12, fontWeight: 500, borderRadius: 6,
-                background: settings.timePerQuestion === t ? 'var(--text)' : 'var(--bg-2)',
-                color: settings.timePerQuestion === t ? 'var(--bg)' : 'var(--text-muted)',
-                border: '1px solid ' + (settings.timePerQuestion === t ? 'var(--text)' : 'var(--border)'),
+                background: settings.timePerQuestion === sec ? 'var(--text)' : 'var(--bg-2)',
+                color: settings.timePerQuestion === sec ? 'var(--bg)' : 'var(--text-muted)',
+                border: '1px solid ' + (settings.timePerQuestion === sec ? 'var(--text)' : 'var(--border)'),
               }}
-            >{t}</button>
+            >{sec}</button>
           ))}
         </div>
       </div>
@@ -761,7 +807,7 @@ function HostSettings({ settings, onChange }) {
 
 function LiveWaitForOthers({ answered, totalP, idx, total, onExit }) {
   return (
-    <div className="live fade-in" data-screen-label="05c Live wait">
+    <div className="live fade-in" {...screenLabel('05c Live wait')}>
       <div className="live__header">
         <button className="btn btn--ghost btn--icon" onClick={onExit}><Icon name="x" size={18} /></button>
         <span className="mono" style={{ fontSize: 12, color: 'var(--text-muted)' }}>Q{idx + 1} / {total}</span>
@@ -824,6 +870,7 @@ function LiveParticipant({ sessionId, onNav }) {
   window.useLang();
   const [phase, setPhase]       = useState('loading'); // loading|error|waiting|question|feedback|done
   const [session, setSession]   = useState(null);
+  const sessionRef              = useRef(null);
   const [questions, setQuestions] = useState([]);
   const [qIdx, setQIdx]         = useState(0);
   const [selected, setSelected] = useState(null);
@@ -834,12 +881,14 @@ function LiveParticipant({ sessionId, onNav }) {
   const [error, setError]       = useState('');
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
+  const wsRef = useRef(null);
 
   // Load session on mount
   useEffect(() => {
     window.API.get('/sessions/' + sessionId + '/')
       .then(async (s) => {
         setSession(s);
+        sessionRef.current = s;
         if (s.has_ended) { setPhase('done'); return; }
         if (!s.has_started) { setPhase('waiting'); return; }
         const quiz = await window.API.get('/quizzes/' + s.quiz_id + '/');
@@ -851,13 +900,47 @@ function LiveParticipant({ sessionId, onNav }) {
       .catch(err => { setError(err.message || 'Could not load session.'); setPhase('error'); });
   }, []);
 
-  // Poll for start while in lobby
+  // WebSocket — connects once session is loaded, handles start/end/kick events
+  useEffect(() => {
+    if (!sessionId) return;
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(proto + '//' + location.host + '/ws/sessions/' + sessionId + '/');
+    wsRef.current = ws;
+
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'session.started' && phaseRef.current === 'waiting') {
+          const s = sessionRef.current;
+          if (!s) return;
+          window.API.get('/quizzes/' + s.quiz_id + '/')
+            .then(quiz => {
+              const qs = (quiz.questions || []).map(window.API.fromBackendQuestion);
+              setQuestions(qs);
+              setPhase('question');
+            }).catch(() => {});
+        }
+        if (msg.type === 'session.ended' && phaseRef.current !== 'done') {
+          setPhase('done');
+        }
+        if (msg.type === 'player.kicked' && msg.username === window.CURRENT_USER.username) {
+          setError(t('live.kicked'));
+          setPhase('error');
+        }
+      } catch {}
+    };
+    ws.onerror = () => {};
+    return () => { ws.close(); wsRef.current = null; };
+  }, [sessionId]);
+
+  // Poll for start while waiting — 5s fallback when WS unavailable
   useEffect(() => {
     if (phase !== 'waiting') return;
     const id = setInterval(async () => {
       try {
         const s = await window.API.get('/sessions/' + sessionId + '/');
         setSession(s);
+        sessionRef.current = s;
         if (s.has_ended) { setPhase('done'); clearInterval(id); return; }
         if (s.has_started) {
           const quiz = await window.API.get('/quizzes/' + s.quiz_id + '/');
@@ -867,7 +950,7 @@ function LiveParticipant({ sessionId, onNav }) {
           clearInterval(id);
         }
       } catch {}
-    }, 2000);
+    }, 5000);
     return () => clearInterval(id);
   }, [phase]);
 
@@ -935,7 +1018,7 @@ function LiveParticipant({ sessionId, onNav }) {
 
   // ── Waiting for host ──
   if (phase === 'waiting') return (
-    <div className="live fade-in" data-screen-label="05p Participant lobby">
+    <div className="live fade-in" {...screenLabel('05p Participant lobby')}>
       <div className="live__header">
         <button className="btn btn--ghost btn--icon" onClick={() => onNav('sessions')}><Icon name="x" size={18} /></button>
         <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-muted)' }}>
@@ -971,7 +1054,7 @@ function LiveParticipant({ sessionId, onNav }) {
 
   // ── Done ──
   if (phase === 'done') return (
-    <div className="live fade-in" data-screen-label="05p Participant done">
+    <div className="live fade-in" {...screenLabel('05p Participant done')}>
       <div className="live__header">
         <button className="btn btn--ghost btn--icon" onClick={() => onNav('sessions')}><Icon name="x" size={18} /></button>
         <div style={{ flex: 1, textAlign: 'center', fontSize: 13, fontWeight: 500, color: 'var(--text-muted)' }}>{session?.quiz_title}</div>
@@ -1008,7 +1091,7 @@ function LiveParticipant({ sessionId, onNav }) {
   const progressPct = ((qIdx + (phase !== 'question' ? 1 : 0)) / questions.length) * 100;
 
   return (
-    <div className="live fade-in" data-screen-label="05p Participant play">
+    <div className="live fade-in" {...screenLabel('05p Participant play')}>
       <div className="live__header">
         <button className="btn btn--ghost btn--icon" onClick={() => onNav('sessions')}><Icon name="x" size={18} /></button>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12, margin: '0 16px' }}>
