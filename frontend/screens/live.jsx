@@ -60,6 +60,7 @@ function LiveHost({ onNav }) {
       };
     } catch { return { timePerQuestion: 30, maxPlayers: 20 }; }
   });
+  const [teams, setTeams] = useState([]);
   const wsRef = React.useRef(null);
   const finishRef = React.useRef(null);
 
@@ -100,10 +101,13 @@ function LiveHost({ onNav }) {
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
-        if (msg.type === 'player.joined' || msg.type === 'player.left') {
+        if (msg.type === 'player.joined' || msg.type === 'player.left' || msg.type === 'team.assigned') {
           window.API.get('/sessions/' + sessionIdRef.current + '/')
             .then(data => setParticipants(data.players || []))
             .catch(() => {});
+        }
+        if (msg.type === 'teams.updated') {
+          setTeams(msg.teams || []);
         }
         if (msg.type === 'player.answered') {
           setAnsweredCount(msg.answered);
@@ -182,6 +186,13 @@ function LiveHost({ onNav }) {
     return () => clearTimeout(t);
   }, [phase]);
 
+  const saveTeams = (newTeams) => {
+    setTeams(newTeams);
+    if (!sessionId) return;
+    window.API.post('/sessions/' + sessionId + '/teams/', { teams: newTeams })
+      .catch(() => {});
+  };
+
   const kickParticipant = (userId) => {
     window.API.post('/sessions/' + sessionId + '/kick/', { user_id: userId })
       .then(() => setParticipants(ps => ps.filter(p => p.user_id !== userId)))
@@ -245,6 +256,8 @@ function LiveHost({ onNav }) {
       onKick={kickParticipant}
       hostSettings={hostSettings}
       onHostSettingsChange={setHostSettings}
+      teams={teams}
+      onTeamsChange={saveTeams}
     />
   );
   if (phase === 'question') return (
@@ -290,7 +303,7 @@ function LiveHost({ onNav }) {
   return null;
 }
 
-function LiveLobby({ pin, quizTitle, participants, onStart, onExit, onKick, hostSettings, onHostSettingsChange }) {
+function LiveLobby({ pin, quizTitle, participants, onStart, onExit, onKick, hostSettings, onHostSettingsChange, teams, onTeamsChange }) {
   return (
     <div className="live fade-in" {...screenLabel('05a Live lobby')}>
       <div className="live__header">
@@ -336,6 +349,7 @@ function LiveLobby({ pin, quizTitle, participants, onStart, onExit, onKick, host
           </div>
 
           <HostSettings settings={hostSettings} onChange={onHostSettingsChange} />
+          <TeamsSetup teams={teams} onChange={onTeamsChange} />
 
           <button className="btn btn--accent btn--xl" onClick={onStart} style={{ alignSelf: 'flex-start', marginTop: 24 }}>
             {t('live.start_with')} {participants.length} {participants.length === 1 ? t('live.player') : t('live.players')} <Icon name="arrowRight" size={16} />
@@ -369,6 +383,11 @@ function LiveLobby({ pin, quizTitle, participants, onStart, onExit, onKick, host
                     color: `oklch(20% 0.05 ${hue})`,
                   }}>{avatarText(p.username)}</div>
                   <span style={{ fontSize: 14, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{p.username}</span>
+                  {p.team_name && (
+                    <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 4, background: p.team_color || 'var(--accent)', color: 'white', flexShrink: 0 }}>
+                      {p.team_name}
+                    </span>
+                  )}
                   <button
                     className="participant-kick"
                     onClick={(e) => { e.stopPropagation(); onKick(p.user_id); }}
@@ -745,6 +764,107 @@ const liveStyles = (
   `}</style>
 );
 
+const TEAM_COLORS = [
+  'oklch(58% 0.22 25)',   // Red
+  'oklch(56% 0.18 225)',  // Blue
+  'oklch(56% 0.18 140)',  // Green
+  'oklch(65% 0.18 80)',   // Yellow
+  'oklch(56% 0.18 290)',  // Purple
+  'oklch(62% 0.20 50)',   // Orange
+];
+
+function TeamsSetup({ teams, onChange }) {
+  const enabled = teams.length > 0;
+
+  const toggle = () => {
+    if (enabled) {
+      onChange([]);
+    } else {
+      onChange([
+        { name: 'Team 1', color: TEAM_COLORS[0] },
+        { name: 'Team 2', color: TEAM_COLORS[1] },
+      ]);
+    }
+  };
+
+  const addTeam = () => {
+    if (teams.length >= 6) return;
+    onChange([...teams, { name: 'Team ' + (teams.length + 1), color: TEAM_COLORS[teams.length % TEAM_COLORS.length] }]);
+  };
+
+  const updateName = (i, name) => {
+    const next = teams.map((t, idx) => idx === i ? { ...t, name } : t);
+    onChange(next);
+  };
+
+  const remove = (i) => {
+    onChange(teams.filter((_, idx) => idx !== i));
+  };
+
+  return (
+    <div style={{
+      background: 'var(--surface)', border: '1px solid var(--border)',
+      borderRadius: 'var(--r-lg)', padding: 16,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: enabled ? 14 : 0 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Icon name="users" size={12} />
+          {t('live.teams_setup')}
+        </div>
+        <button
+          onClick={toggle}
+          style={{
+            width: 36, height: 20, borderRadius: 10, cursor: 'pointer',
+            background: enabled ? 'var(--accent)' : 'var(--bg-2)',
+            border: '1px solid ' + (enabled ? 'var(--accent-strong)' : 'var(--border)'),
+            position: 'relative', transition: 'all 200ms',
+            flexShrink: 0,
+          }}
+        >
+          <span style={{
+            position: 'absolute', top: 2, left: enabled ? 17 : 2, width: 14, height: 14,
+            borderRadius: 999, background: 'white', transition: 'left 200ms',
+          }} />
+        </button>
+      </div>
+
+      {enabled && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {teams.map((team, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 14, height: 14, borderRadius: 4, background: team.color, flexShrink: 0 }} />
+              <input
+                value={team.name}
+                onChange={e => updateName(i, e.target.value)}
+                onBlur={() => { /* saved immediately */ }}
+                style={{
+                  flex: 1, padding: '5px 10px', fontSize: 13,
+                  background: 'var(--bg)', border: '1px solid var(--border)',
+                  borderRadius: 6, color: 'var(--text)',
+                }}
+              />
+              <button onClick={() => remove(i)} style={{ background: 'none', padding: 4, cursor: 'pointer', color: 'var(--text-faint)', flexShrink: 0 }}>
+                <Icon name="x" size={13} />
+              </button>
+            </div>
+          ))}
+          {teams.length < 6 && (
+            <button
+              onClick={addTeam}
+              style={{
+                padding: '7px 0', fontSize: 12, fontWeight: 500,
+                border: '1px dashed var(--border-strong)', borderRadius: 6,
+                color: 'var(--text-muted)', background: 'transparent', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              }}
+            ><Icon name="plus" size={13} /> {t('live.add_team')}</button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function HostSettings({ settings, onChange }) {
   return (
     <div style={{
@@ -870,6 +990,7 @@ function LiveParticipant({ sessionId, onNav }) {
   window.useLang();
   const [phase, setPhase]       = useState('loading'); // loading|error|waiting|question|feedback|done
   const [session, setSession]   = useState(null);
+  const [myTeamId, setMyTeamId] = useState(null);
   const sessionRef              = useRef(null);
   const [questions, setQuestions] = useState([]);
   const [qIdx, setQIdx]         = useState(0);
@@ -910,6 +1031,9 @@ function LiveParticipant({ sessionId, onNav }) {
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
+        if (msg.type === 'teams.updated') {
+          setSession(s => s ? { ...s, teams_enabled: msg.teams_enabled, teams: msg.teams } : s);
+        }
         if (msg.type === 'session.started' && phaseRef.current === 'waiting') {
           const s = sessionRef.current;
           if (!s) return;
@@ -1016,6 +1140,13 @@ function LiveParticipant({ sessionId, onNav }) {
     </div>
   );
 
+  const joinTeam = (teamId) => {
+    const newId = myTeamId === teamId ? null : teamId;
+    window.API.post('/sessions/' + sessionId + '/join-team/', { team_id: newId })
+      .then(() => setMyTeamId(newId))
+      .catch(err => window.showToast(err.message, 'error'));
+  };
+
   // ── Waiting for host ──
   if (phase === 'waiting') return (
     <div className="live fade-in" {...screenLabel('05p Participant lobby')}>
@@ -1027,7 +1158,7 @@ function LiveParticipant({ sessionId, onNav }) {
         <div style={{ flex: 1 }} />
       </div>
       <div className="live__qstage">
-        <div className="slide-up" style={{ textAlign: 'center', maxWidth: 440 }}>
+        <div className="slide-up" style={{ textAlign: 'center', maxWidth: 480 }}>
           <div style={{
             width: 80, height: 80, borderRadius: 999,
             background: 'var(--surface)', border: '1px solid var(--border)',
@@ -1046,6 +1177,36 @@ function LiveParticipant({ sessionId, onNav }) {
           <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>
             {t('live.joined_hint_1')} <strong>{session?.quiz_title}</strong>. {t('live.joined_hint_2')}
           </p>
+
+          {/* Team selection */}
+          {session?.teams_enabled && session?.teams?.length > 0 && (
+            <div style={{ marginTop: 32, textAlign: 'left' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12, textAlign: 'center' }}>
+                {t('live.choose_team')}
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center' }}>
+                {session.teams.map(team => (
+                  <button
+                    key={team.id}
+                    onClick={() => joinTeam(team.id)}
+                    style={{
+                      padding: '10px 20px', borderRadius: 'var(--r-md)', cursor: 'pointer',
+                      fontWeight: 600, fontSize: 14, transition: 'all 150ms var(--ease)',
+                      background: myTeamId === team.id ? team.color : 'var(--surface)',
+                      color: myTeamId === team.id ? 'white' : 'var(--text)',
+                      border: '2px solid ' + (myTeamId === team.id ? team.color : 'var(--border)'),
+                      transform: myTeamId === team.id ? 'scale(1.05)' : 'scale(1)',
+                    }}
+                  >{team.name}</button>
+                ))}
+              </div>
+              {myTeamId && (
+                <div style={{ textAlign: 'center', marginTop: 10, fontSize: 12, color: 'var(--text-muted)' }}>
+                  {t('live.in_team')}: <strong>{session.teams.find(t => t.id === myTeamId)?.name}</strong>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
       {liveStyles}

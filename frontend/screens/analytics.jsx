@@ -15,24 +15,34 @@ function Analytics({ onNav }) {
   return (
     <div className="page fade-in" {...screenLabel('06 Analytics')}>
       <PageHeader title={t('anal.title')} subtitle={t('anal.subtitle')}>
-        <div style={{
-          display: 'flex', background: 'var(--surface)', borderRadius: 'var(--r-md)',
-          border: '1px solid var(--border)', padding: 3,
-        }}>
-          {['7d', '30d', '90d', 'all'].map(r => (
-            <button
-              key={r}
-              onClick={() => setRange(r)}
-              style={{
-                padding: '6px 12px', fontSize: 12, fontWeight: 500,
-                borderRadius: 6,
-                background: range === r ? 'var(--bg)' : 'transparent',
-                color: range === r ? 'var(--text)' : 'var(--text-muted)',
-                boxShadow: range === r ? 'var(--shadow-sm)' : 'none',
-                fontFamily: 'JetBrains Mono', textTransform: 'uppercase',
-              }}
-            >{r}</button>
-          ))}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div style={{
+            display: 'flex', background: 'var(--surface)', borderRadius: 'var(--r-md)',
+            border: '1px solid var(--border)', padding: 3,
+          }}>
+            {['7d', '30d', '90d', 'all'].map(r => (
+              <button
+                key={r}
+                onClick={() => setRange(r)}
+                style={{
+                  padding: '6px 12px', fontSize: 12, fontWeight: 500,
+                  borderRadius: 6,
+                  background: range === r ? 'var(--bg)' : 'transparent',
+                  color: range === r ? 'var(--text)' : 'var(--text-muted)',
+                  boxShadow: range === r ? 'var(--shadow-sm)' : 'none',
+                  fontFamily: 'JetBrains Mono', textTransform: 'uppercase',
+                }}
+              >{r}</button>
+            ))}
+          </div>
+          <a
+            href={'/api/analytics/export/?range=' + range}
+            download
+            className="btn btn--ghost btn--sm"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}
+          >
+            <Icon name="import" size={14} /> {t('anal.export_csv')}
+          </a>
         </div>
       </PageHeader>
 

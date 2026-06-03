@@ -22,8 +22,8 @@ from django.db import transaction
 from django.db.models import Count, F, Q, Sum
 
 from auth_sys.models import Account, PasswordResetToken, WorkspaceInvitation
-from quiz.models import Quiz, Question, Answer, PracticeRecord, UserStat, ActivityEntry, TopicStat
-from hosting.models import Session, SessionPlayer, PlayerAnswer
+from quiz.models import Quiz, Question, Answer, PracticeRecord, UserStat, ActivityEntry, TopicStat, QuizVote, QuizComment, CommentVote
+from hosting.models import Session, SessionPlayer, PlayerAnswer, SessionTeam
 
 
 def login_required(view_func):
@@ -60,8 +60,18 @@ def _user_data(user):
     }
 
 
-def _quiz_data(quiz):
+def _quiz_data(quiz, user=None):
     qcount = getattr(quiz, 'question_count', None)
+    votes = quiz.votes.aggregate(
+        likes=Count('id', filter=Q(value=1)),
+        dislikes=Count('id', filter=Q(value=-1)),
+    )
+    my_vote = 0
+    if user and getattr(user, 'is_authenticated', False):
+        try:
+            my_vote = QuizVote.objects.get(quiz=quiz, user=user).value
+        except QuizVote.DoesNotExist:
+            pass
     return {
         'id': quiz.id,
         'title': quiz.title,
@@ -74,6 +84,9 @@ def _quiz_data(quiz):
         'created_at': quiz.created_at.isoformat(),
         'question_count': qcount if qcount is not None else quiz.questions.count(),
         'is_public': quiz.is_public,
+        'likes': votes['likes'] or 0,
+        'dislikes': votes['dislikes'] or 0,
+        'my_vote': my_vote,
     }
 
 
@@ -105,6 +118,10 @@ def _question_data(q):
 
 
 def _session_data(s):
+    teams = [
+        {'id': t.id, 'name': t.name, 'color': t.color, 'order': t.order}
+        for t in s.teams.all()
+    ] if s.teams_enabled else []
     return {
         'id': s.id,
         'code': s.code,
@@ -118,6 +135,8 @@ def _session_data(s):
         'is_active': s.is_active,
         'created_at': s.created_at.isoformat(),
         'player_count': s.players.filter(is_kicked=False).count(),
+        'teams_enabled': s.teams_enabled,
+        'teams': teams,
     }
 
 
@@ -617,7 +636,8 @@ def api_quiz_detail(request, quiz_id):
         ).exists()
         if not is_workspace_member:
             return JsonResponse({'error': 'Access denied'}, status=403)
-    data = _quiz_data(quiz)
+    user = request.user if request.user.is_authenticated else None
+    data = _quiz_data(quiz, user=user)
     data['questions'] = [_question_data(q) for q in quiz.questions.all()]
     return JsonResponse(data)
 
@@ -919,8 +939,15 @@ def api_session_detail(request, session_id):
     session = get_object_or_404(Session, id=session_id)
     data = _session_data(session)
     data['players'] = [
-        {'user_id': p.user_id, 'username': p.user.username, 'score': p.score, 'is_kicked': p.is_kicked}
-        for p in session.players.filter(is_kicked=False).select_related('user')
+        {
+            'user_id': p.user_id,
+            'username': p.user.username,
+            'score': p.score,
+            'is_kicked': p.is_kicked,
+            'team_id': p.team_id,
+            'team_name': p.team.name if p.team else None,
+        }
+        for p in session.players.filter(is_kicked=False).select_related('user', 'team')
     ]
     return JsonResponse(data)
 
@@ -1310,4 +1337,252 @@ def api_profile_stats(request):
         'top_pct':          top_pct,
         'joined':           user.date_joined.isoformat(),
         'achievements':     achievements,
+    })
+
+
+# ─── SOCIAL: VOTES & COMMENTS ────────────────────────────────────────────────
+
+@csrf_exempt
+@login_required
+def api_quiz_vote(request, quiz_id):
+    quiz = get_object_or_404(Quiz, id=quiz_id)
+    data = _json_body(request)
+    value = data.get('value', 0)
+    if value not in (-1, 0, 1):
+        return JsonResponse({'error': 'Invalid vote value'}, status=400)
+    if value == 0:
+        QuizVote.objects.filter(quiz=quiz, user=request.user).delete()
+        my_vote = 0
+    else:
+        QuizVote.objects.update_or_create(quiz=quiz, user=request.user, defaults={'value': value})
+        my_vote = value
+    votes = quiz.votes.aggregate(likes=Count('id', filter=Q(value=1)), dislikes=Count('id', filter=Q(value=-1)))
+    return JsonResponse({'likes': votes['likes'] or 0, 'dislikes': votes['dislikes'] or 0, 'my_vote': my_vote})
+
+
+@csrf_exempt
+def api_quiz_comments(request, quiz_id):
+    quiz = get_object_or_404(Quiz, id=quiz_id)
+    user = request.user if request.user.is_authenticated else None
+
+    if request.method == 'GET':
+        sort = request.GET.get('sort', 'top')
+        top_comments = (
+            QuizComment.objects
+            .filter(quiz=quiz, parent=None)
+            .select_related('author', 'author__account')
+            .prefetch_related('votes', 'replies__author', 'replies__author__account', 'replies__votes',
+                              'replies__replies__author', 'replies__replies__author__account', 'replies__replies__votes')
+        )
+
+        def _cdata(c, depth=0):
+            vote_map = {v.user_id: v.value for v in c.votes.all()}
+            acc = getattr(c.author, 'account', None)
+            return {
+                'id': c.id,
+                'author': c.author.username,
+                'author_avatar': acc.image.url if acc and acc.image else None,
+                'author_avatar_transform': acc.image_transform if acc else '',
+                'body': '' if c.is_deleted else c.body,
+                'created_at': c.created_at.isoformat(),
+                'edited_at': c.edited_at.isoformat() if c.edited_at else None,
+                'is_deleted': c.is_deleted,
+                'vote_score': sum(vote_map.values()),
+                'my_vote': vote_map.get(user.id, 0) if user else 0,
+                'replies': [_cdata(r, depth + 1) for r in c.replies.all()] if depth < 4 else [],
+            }
+
+        result = [_cdata(c) for c in top_comments]
+        if sort == 'top':
+            result.sort(key=lambda c: c['vote_score'], reverse=True)
+        return JsonResponse({'comments': result})
+
+    if request.method == 'POST':
+        if not user:
+            return JsonResponse({'error': 'Login required'}, status=401)
+        data = _json_body(request)
+        body = data.get('body', '').strip()
+        if not body:
+            return JsonResponse({'error': 'Body required'}, status=400)
+        if len(body) > 5000:
+            return JsonResponse({'error': 'Comment too long (max 5000 chars)'}, status=400)
+        parent = None
+        pid = data.get('parent_id')
+        if pid:
+            parent = get_object_or_404(QuizComment, id=pid, quiz=quiz)
+        c = QuizComment.objects.create(quiz=quiz, author=user, parent=parent, body=body)
+        acc = getattr(user, 'account', None)
+        return JsonResponse({
+            'id': c.id, 'author': user.username,
+            'author_avatar': acc.image.url if acc and acc.image else None,
+            'author_avatar_transform': acc.image_transform if acc else '',
+            'body': c.body, 'created_at': c.created_at.isoformat(),
+            'edited_at': None, 'is_deleted': False,
+            'vote_score': 0, 'my_vote': 0, 'replies': [],
+        }, status=201)
+
+    return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+
+@csrf_exempt
+@login_required
+def api_comment_detail(request, comment_id):
+    comment = get_object_or_404(QuizComment, id=comment_id)
+    if request.method == 'PATCH':
+        if comment.author != request.user:
+            return JsonResponse({'error': 'Access denied'}, status=403)
+        data = _json_body(request)
+        body = data.get('body', '').strip()
+        if not body:
+            return JsonResponse({'error': 'Body required'}, status=400)
+        comment.body = body
+        comment.edited_at = timezone.now()
+        comment.save()
+        return JsonResponse({'status': 'ok', 'body': comment.body})
+    if request.method == 'DELETE':
+        if comment.author != request.user:
+            return JsonResponse({'error': 'Access denied'}, status=403)
+        comment.is_deleted = True
+        comment.body = ''
+        comment.save()
+        return JsonResponse({'status': 'ok'})
+    return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+
+@csrf_exempt
+@login_required
+def api_comment_vote(request, comment_id):
+    comment = get_object_or_404(QuizComment, id=comment_id)
+    data = _json_body(request)
+    value = data.get('value', 0)
+    if value not in (-1, 0, 1):
+        return JsonResponse({'error': 'Invalid vote value'}, status=400)
+    if value == 0:
+        CommentVote.objects.filter(comment=comment, user=request.user).delete()
+    else:
+        CommentVote.objects.update_or_create(comment=comment, user=request.user, defaults={'value': value})
+    vote_score = sum(v.value for v in comment.votes.all())
+    return JsonResponse({'vote_score': vote_score, 'my_vote': value})
+
+
+# ─── ANALYTICS EXPORT ────────────────────────────────────────────────────────
+
+@login_required
+def api_analytics_export(request):
+    import csv
+    from django.http import HttpResponse
+    range_param = request.GET.get('range', 'all')
+    today = _date.today()
+    start = None
+    if range_param == '7d':   start = today - timedelta(days=7)
+    elif range_param == '30d': start = today - timedelta(days=30)
+    elif range_param == '90d': start = today - timedelta(days=90)
+
+    sessions = Session.objects.filter(host=request.user, has_ended=True).select_related('session')
+    if start:
+        sessions = sessions.filter(created_at__date__gte=start)
+
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
+    response['Content-Disposition'] = 'attachment; filename="quiz_results.csv"'
+    response.write('﻿')  # UTF-8 BOM for Excel
+    writer = csv.writer(response)
+    writer.writerow(['Date', 'Session Code', 'Quiz', 'Username', 'Score', 'Rank'])
+    for session in sessions.order_by('-created_at'):
+        players = list(
+            session.players.filter(is_kicked=False)
+            .select_related('user').order_by('-score', 'joined_at')
+        )
+        for rank, sp in enumerate(players, 1):
+            writer.writerow([
+                session.created_at.date().isoformat(),
+                session.code, session.session.title,
+                sp.user.username, sp.score, rank,
+            ])
+    return response
+
+
+# ─── SESSION TEAMS ───────────────────────────────────────────────────────────
+
+@csrf_exempt
+@login_required
+def api_session_teams(request, session_id):
+    session = get_object_or_404(Session, id=session_id)
+    if session.host != request.user:
+        return JsonResponse({'error': 'Only the host can manage teams'}, status=403)
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    data = _json_body(request)
+    teams_data = data.get('teams', [])
+    session.teams.all().delete()
+    session.teams_enabled = bool(teams_data)
+    session.save(update_fields=['teams_enabled'])
+    created = []
+    for i, t in enumerate(teams_data):
+        team = SessionTeam.objects.create(
+            session=session, name=t.get('name', f'Team {i+1}')[:30],
+            color=t.get('color', ''), order=i,
+        )
+        created.append({'id': team.id, 'name': team.name, 'color': team.color, 'order': team.order})
+    _ws_broadcast(session.id, {'type': 'teams.updated', 'teams': created, 'teams_enabled': session.teams_enabled})
+    return JsonResponse({'teams_enabled': session.teams_enabled, 'teams': created})
+
+
+@csrf_exempt
+@login_required
+def api_session_join_team(request, session_id):
+    session = get_object_or_404(Session, id=session_id)
+    sp = get_object_or_404(SessionPlayer, session=session, user=request.user)
+    data = _json_body(request)
+    team_id = data.get('team_id')
+    if team_id:
+        team = get_object_or_404(SessionTeam, id=team_id, session=session)
+        sp.team = team
+    else:
+        sp.team = None
+    sp.save(update_fields=['team'])
+    players_data = [
+        {
+            'user_id': p.user_id, 'username': p.user.username, 'score': p.score,
+            'team_id': p.team_id, 'team_name': p.team.name if p.team else None,
+        }
+        for p in session.players.filter(is_kicked=False).select_related('user', 'team')
+    ]
+    _ws_broadcast(session.id, {'type': 'team.assigned', 'players': players_data})
+    return JsonResponse({'status': 'ok', 'team_id': sp.team_id})
+
+
+# ─── PUBLIC USER PROFILE ─────────────────────────────────────────────────────
+
+def api_user_profile(request, username):
+    try:
+        user = User.objects.get(username=username)
+    except User.DoesNotExist:
+        return JsonResponse({'error': 'User not found'}, status=404)
+    account = getattr(user, 'account', None)
+    stat = getattr(user, 'stat', None)
+    quiz_count = Quiz.objects.filter(creator=user, is_public=True).count()
+    session_count = Session.objects.filter(host=user).count()
+    heatmap_start = _date.today() - timedelta(weeks=26)
+    activity = [
+        {'date': a.date.isoformat(), 'xp': a.xp, 'questions': a.questions}
+        for a in ActivityEntry.objects.filter(user=user, date__gte=heatmap_start).order_by('date')
+    ]
+    topics = []
+    for ts in TopicStat.objects.filter(user=user, total__gt=0).order_by('-correct'):
+        acc = round(ts.correct / ts.total * 100) if ts.total else 0
+        topics.append({'topic': ts.topic, 'label': _TOPIC_LABELS.get(ts.topic, ts.topic), 'accuracy': acc, 'total': ts.total})
+    return JsonResponse({
+        'username': user.username,
+        'name': user.get_full_name() or user.username,
+        'avatar': account.image.url if account and account.image else None,
+        'avatar_transform': account.image_transform if account else '',
+        'description': account.description if account else '',
+        'joined': user.date_joined.isoformat(),
+        'xp': stat.xp if stat else 0,
+        'streak_current': stat.streak_current if stat else 0,
+        'quizzes_played': stat.quizzes_played if stat else 0,
+        'quiz_count': quiz_count,
+        'session_count': session_count,
+        'activity': activity,
+        'topics': topics,
     })

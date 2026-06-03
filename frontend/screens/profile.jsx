@@ -300,38 +300,53 @@ function Achievements({ achievements = [], loading }) {
 
 function ProfilePage({ onNav }) {
   window.useLang();
-  const [stats, setStats]   = useState(null);
+  const [stats, setStats]     = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError]   = useState('');
-  const u = window.CURRENT_USER;
+  const [error, setError]     = useState('');
+
+  const params     = window.getQueryParams();
+  const targetUser = params.user;            // set when viewing someone else
+  const self       = window.CURRENT_USER;
+  const isOwn      = !targetUser || targetUser === self.username;
 
   useEffect(() => {
-    window.API.get('/profile/stats/')
-      .then(data => {
-        setStats(data);
-        setLoading(false);
-        try {
-          const seen = new Set(JSON.parse(localStorage.getItem('nq:seen_achievements') || '[]'));
-          const fresh = (data.achievements || []).filter(a => a.unlocked && !seen.has(a.id));
-          if (fresh.length > 0) {
-            fresh.forEach((a, i) => {
-              setTimeout(() => {
-                window.showAchievementToast(
-                  window.t('prof.ach_' + a.id) || a.name,
-                  window.t('prof.ach_d_' + a.id) || a.desc
-                );
-              }, i * 1400);
-            });
-            localStorage.setItem('nq:seen_achievements', JSON.stringify(
-              [...seen, ...fresh.map(a => a.id)]
-            ));
-          }
-        } catch {}
-      })
-      .catch(err => { setError(err.message); setLoading(false); });
-  }, []);
+    if (isOwn) {
+      window.API.get('/profile/stats/')
+        .then(data => {
+          setStats(data);
+          setLoading(false);
+          try {
+            const seen = new Set(JSON.parse(localStorage.getItem('nq:seen_achievements') || '[]'));
+            const fresh = (data.achievements || []).filter(a => a.unlocked && !seen.has(a.id));
+            if (fresh.length > 0) {
+              fresh.forEach((a, i) => {
+                setTimeout(() => {
+                  window.showAchievementToast(
+                    window.t('prof.ach_' + a.id) || a.name,
+                    window.t('prof.ach_d_' + a.id) || a.desc
+                  );
+                }, i * 1400);
+              });
+              localStorage.setItem('nq:seen_achievements', JSON.stringify(
+                [...seen, ...fresh.map(a => a.id)]
+              ));
+            }
+          } catch {}
+        })
+        .catch(err => { setError(err.message); setLoading(false); });
+    } else {
+      window.API.get('/users/' + targetUser + '/')
+        .then(data => { setStats(data); setLoading(false); })
+        .catch(err => { setError(err.message); setLoading(false); });
+    }
+  }, [targetUser]);
 
-  const initials = (u.name || u.username || '?')
+  // For public profile, user data comes from stats; for own profile, mix CURRENT_USER + stats
+  const displayUser = isOwn
+    ? { username: self.username, name: self.name || self.username, avatar: self.avatar, avatar_transform: self.avatar_transform }
+    : { username: stats?.username || targetUser, name: stats?.name || targetUser, avatar: stats?.avatar, avatar_transform: stats?.avatar_transform };
+
+  const initials = (displayUser.name || displayUser.username || '?')
     .split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 
   const joinedStr = stats?.joined
@@ -341,17 +356,17 @@ function ProfilePage({ onNav }) {
   return (
     <div className="page fade-in">
       <PageHeader
-        title={t('prof.your_profile')}
-        subtitle={t('prof.subtitle')}
+        title={isOwn ? t('prof.your_profile') : t('prof.public_profile')}
+        subtitle={isOwn ? t('prof.subtitle') : ('@' + displayUser.username)}
       />
 
       {/* ── Profile header card ── */}
       <div className="card slide-up" style={{ padding: '24px 28px', marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
           {/* Avatar */}
-          {u.avatar ? (
+          {displayUser.avatar ? (
             <div style={{ width: 72, height: 72, borderRadius: 999, overflow: 'hidden', flexShrink: 0, position: 'relative' }}>
-              <div style={window.applyImageTransform(u.avatar, window.API.parseTransform(u.avatar_transform), 1)} />
+              <div style={window.applyImageTransform(displayUser.avatar, window.API.parseTransform(displayUser.avatar_transform), 1)} />
             </div>
           ) : (
             <div style={{
@@ -369,11 +384,11 @@ function ProfilePage({ onNav }) {
               textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4,
               display: 'flex', gap: 8, alignItems: 'center',
             }}>
-              <span className="mono">@{u.username}</span>
+              <span className="mono">@{displayUser.username}</span>
               {joinedStr && <span>· {t('prof.joined')} {joinedStr}</span>}
             </div>
             <h2 style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1 }}>
-              {u.name || u.username}
+              {displayUser.name}
             </h2>
             {!loading && stats && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
@@ -420,20 +435,27 @@ function ProfilePage({ onNav }) {
         <StatTile
           icon="star" label={t('prof.total_xp')} accent
           value={loading ? '—' : (stats?.xp ?? 0).toLocaleString()}
-          sub={!loading && stats?.xp_this_week > 0 ? `+${stats.xp_this_week.toLocaleString()} ${t('prof.this_week')}` : ''}
+          sub={isOwn && !loading && stats?.xp_this_week > 0 ? `+${stats.xp_this_week.toLocaleString()} ${t('prof.this_week')}` : ''}
         />
         <StatTile
           icon="play" label={t('prof.quizzes_played')}
           value={loading ? '—' : (stats?.quizzes_played ?? 0).toLocaleString()}
-          sub={!loading && stats?.quizzes_this_week > 0 ? `+${stats.quizzes_this_week} ${t('prof.this_week')}` : ''}
+          sub={isOwn && !loading && stats?.quizzes_this_week > 0 ? `+${stats.quizzes_this_week} ${t('prof.this_week')}` : ''}
         />
-        <StatTile
-          icon="check" label={t('prof.accuracy')}
-          value={loading ? '—' : (stats?.accuracy != null ? `${stats.accuracy}%` : '—')}
-          sub={!loading && stats?.questions_total > 0
-            ? `${stats.correct_total?.toLocaleString()} ${t('prof.correct_of')} ${stats.questions_total?.toLocaleString()} ${t('prof.correct')}`
-            : ''}
-        />
+        {isOwn ? (
+          <StatTile
+            icon="check" label={t('prof.accuracy')}
+            value={loading ? '—' : (stats?.accuracy != null ? `${stats.accuracy}%` : '—')}
+            sub={!loading && stats?.questions_total > 0
+              ? `${stats.correct_total?.toLocaleString()} ${t('prof.correct_of')} ${stats.questions_total?.toLocaleString()} ${t('prof.correct')}`
+              : ''}
+          />
+        ) : (
+          <StatTile
+            icon="grid" label={t('prof.public_quizzes')}
+            value={loading ? '—' : (stats?.quiz_count ?? 0).toLocaleString()}
+          />
+        )}
       </div>
 
       {/* ── Activity + Topics ── */}
@@ -442,8 +464,8 @@ function ProfilePage({ onNav }) {
         <StrongestTopics topics={stats?.topics || []} loading={loading} />
       </div>
 
-      {/* ── Achievements ── */}
-      <Achievements achievements={stats?.achievements || []} loading={loading} />
+      {/* ── Achievements (own profile only) ── */}
+      {isOwn && <Achievements achievements={stats?.achievements || []} loading={loading} />}
 
       {error && (
         <div style={{

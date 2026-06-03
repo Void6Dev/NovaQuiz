@@ -99,6 +99,7 @@ function SharedWithMe({ onNav }) {
                   key={q.id}
                   quiz={q}
                   isOwn={false}
+                  onDetail={() => onNav('quiz', { id: q.id })}
                   onPlay={() => onNav('player', { quizId: q.id })}
                   onDuplicate={() => duplicateQuiz(q)}
                   delay={i * 30}
@@ -110,6 +111,7 @@ function SharedWithMe({ onNav }) {
               quizzes={filtered}
               myUsername={u.username}
               onOpen={() => {}}
+              onDetail={(id) => onNav('quiz', { id })}
               onPlay={(id) => onNav('player', { quizId: id })}
               onRunLive={() => {}}
               onDelete={() => {}}

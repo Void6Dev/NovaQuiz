@@ -493,6 +493,47 @@
       'shared.no_match': 'No quizzes match your search.',
       'shared.of':       'of',
 
+      // ── Quiz detail ──────────────────────────────────────────────────────────
+      'quiz.by':              'by',
+      'quiz.questions':       'Questions',
+      'quiz.questions_count': 'questions',
+      'quiz.play':            'Play Solo',
+      'quiz.run_live':        'Run Live',
+      'quiz.comments_title':  'Comments',
+      'quiz.comment_ph':      'Share your thoughts… (markdown supported)',
+      'quiz.comment_reply':   'Reply',
+      'quiz.comment_edit':    'Edit',
+      'quiz.comment_delete':  'Delete',
+      'quiz.comment_save':    'Save',
+      'quiz.comment_cancel':  'Cancel',
+      'quiz.comment_deleted': '[deleted]',
+      'quiz.no_comments':     'No comments yet. Be the first!',
+      'quiz.sort_top':        'Top',
+      'quiz.sort_new':        'New',
+      'quiz.login_comment':   'Log in to leave a comment',
+      'quiz.edited':          'edited',
+      'quiz.show_replies':    'Show replies',
+      'quiz.collapse':        'Collapse',
+
+      // ── Analytics export ─────────────────────────────────────────────────────
+      'anal.export_csv': 'Export CSV',
+
+      // ── Live teams ───────────────────────────────────────────────────────────
+      'live.team_mode':    'Team Mode',
+      'live.add_team':     'Add team',
+      'live.remove_team':  'Remove',
+      'live.choose_team':  'Choose your team:',
+      'live.join_team':    'Join',
+      'live.in_team':      'In team',
+      'live.no_team':      'No team',
+      'live.teams_setup':  'Teams',
+      'live.team_scores':  'Team scores',
+
+      // ── Public profile ───────────────────────────────────────────────────────
+      'prof.public_profile':  'Profile',
+      'prof.public_quizzes':  'Public Quizzes',
+      'prof.sessions_hosted': 'Sessions Hosted',
+
       // ── Notifications ────────────────────────────────────────────────────────
       'notif.email_title':     'Email notifications',
       'notif.email_sub':       'Control what gets sent to your inbox. Changes are saved automatically.',
@@ -1068,6 +1109,47 @@
       'shared.no_match': 'Нет квизов, соответствующих поиску.',
       'shared.of':       'из',
 
+      // ── Quiz detail ──────────────────────────────────────────────────────────
+      'quiz.by':              'от',
+      'quiz.questions':       'Вопросы',
+      'quiz.questions_count': 'вопросов',
+      'quiz.play':            'Играть соло',
+      'quiz.run_live':        'Запустить',
+      'quiz.comments_title':  'Комментарии',
+      'quiz.comment_ph':      'Напишите комментарий… (поддерживается markdown)',
+      'quiz.comment_reply':   'Ответить',
+      'quiz.comment_edit':    'Изменить',
+      'quiz.comment_delete':  'Удалить',
+      'quiz.comment_save':    'Сохранить',
+      'quiz.comment_cancel':  'Отмена',
+      'quiz.comment_deleted': '[удалено]',
+      'quiz.no_comments':     'Комментариев нет. Будьте первым!',
+      'quiz.sort_top':        'Популярные',
+      'quiz.sort_new':        'Новые',
+      'quiz.login_comment':   'Войдите, чтобы комментировать',
+      'quiz.edited':          'изменено',
+      'quiz.show_replies':    'Показать ответы',
+      'quiz.collapse':        'Свернуть',
+
+      // ── Analytics export ─────────────────────────────────────────────────────
+      'anal.export_csv': 'Скачать CSV',
+
+      // ── Live teams ───────────────────────────────────────────────────────────
+      'live.team_mode':    'Режим команд',
+      'live.add_team':     'Добавить команду',
+      'live.remove_team':  'Удалить',
+      'live.choose_team':  'Выберите команду:',
+      'live.join_team':    'Вступить',
+      'live.in_team':      'В команде',
+      'live.no_team':      'Без команды',
+      'live.teams_setup':  'Команды',
+      'live.team_scores':  'Счёт команд',
+
+      // ── Public profile ───────────────────────────────────────────────────────
+      'prof.public_profile':  'Профиль',
+      'prof.public_quizzes':  'Публичные квизы',
+      'prof.sessions_hosted': 'Сессий проведено',
+
       // ── Notifications ─────────────────────────────────────────────────────────
       'notif.email_title':     'Email-уведомления',
       'notif.email_sub':       'Управляйте тем, что приходит на почту. Изменения сохраняются автоматически.',
@@ -1642,6 +1724,47 @@
       'shared.loading':  'Cargando…',
       'shared.no_match': 'No hay cuestionarios que coincidan con tu búsqueda.',
       'shared.of':       'de',
+
+      // ── Quiz detail ──────────────────────────────────────────────────────────
+      'quiz.by':              'por',
+      'quiz.questions':       'Preguntas',
+      'quiz.questions_count': 'preguntas',
+      'quiz.play':            'Jugar solo',
+      'quiz.run_live':        'En vivo',
+      'quiz.comments_title':  'Comentarios',
+      'quiz.comment_ph':      'Comparte tu opinión… (markdown soportado)',
+      'quiz.comment_reply':   'Responder',
+      'quiz.comment_edit':    'Editar',
+      'quiz.comment_delete':  'Eliminar',
+      'quiz.comment_save':    'Guardar',
+      'quiz.comment_cancel':  'Cancelar',
+      'quiz.comment_deleted': '[eliminado]',
+      'quiz.no_comments':     '¡Sé el primero en comentar!',
+      'quiz.sort_top':        'Top',
+      'quiz.sort_new':        'Nuevos',
+      'quiz.login_comment':   'Inicia sesión para comentar',
+      'quiz.edited':          'editado',
+      'quiz.show_replies':    'Ver respuestas',
+      'quiz.collapse':        'Colapsar',
+
+      // ── Analytics export ─────────────────────────────────────────────────────
+      'anal.export_csv': 'Exportar CSV',
+
+      // ── Live teams ───────────────────────────────────────────────────────────
+      'live.team_mode':    'Modo equipos',
+      'live.add_team':     'Añadir equipo',
+      'live.remove_team':  'Quitar',
+      'live.choose_team':  'Elige tu equipo:',
+      'live.join_team':    'Unirse',
+      'live.in_team':      'En equipo',
+      'live.no_team':      'Sin equipo',
+      'live.teams_setup':  'Equipos',
+      'live.team_scores':  'Puntuación de equipos',
+
+      // ── Public profile ───────────────────────────────────────────────────────
+      'prof.public_profile':  'Perfil',
+      'prof.public_quizzes':  'Quiz públicos',
+      'prof.sessions_hosted': 'Sesiones organizadas',
 
       // ── Notifications ─────────────────────────────────────────────────────────
       'notif.email_title':     'Notificaciones por correo',

@@ -117,3 +117,36 @@ class TopicStat(models.Model):
     def __str__(self):
         pct = round(self.correct / self.total * 100) if self.total else 0
         return f"{self.user.username} {self.topic}: {pct}%"
+
+
+# ── Social ────────────────────────────────────────────────────────────────────
+
+class QuizVote(models.Model):
+    quiz  = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='votes')
+    user  = models.ForeignKey(User, on_delete=models.CASCADE, related_name='quiz_votes')
+    value = models.SmallIntegerField()  # +1 like, -1 dislike
+
+    class Meta:
+        unique_together = ('quiz', 'user')
+
+
+class QuizComment(models.Model):
+    quiz       = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='comments')
+    author     = models.ForeignKey(User, on_delete=models.CASCADE, related_name='quiz_comments')
+    parent     = models.ForeignKey('self', null=True, blank=True, on_delete=models.CASCADE, related_name='replies')
+    body       = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    edited_at  = models.DateTimeField(null=True, blank=True)
+    is_deleted = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['created_at']
+
+
+class CommentVote(models.Model):
+    comment = models.ForeignKey(QuizComment, on_delete=models.CASCADE, related_name='votes')
+    user    = models.ForeignKey(User, on_delete=models.CASCADE, related_name='comment_votes')
+    value   = models.SmallIntegerField()  # +1 or -1
+
+    class Meta:
+        unique_together = ('comment', 'user')

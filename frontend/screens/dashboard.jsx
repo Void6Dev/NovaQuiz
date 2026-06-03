@@ -211,6 +211,7 @@ function Dashboard({ onNav }) {
                 quiz={q}
                 isOwn={isOwn}
                 onOpen={isOwn ? () => onNav('editor', { quizId: q.id }) : null}
+                onDetail={!isOwn ? () => onNav('quiz', { id: q.id }) : null}
                 onPlay={() => onNav('player', { quizId: q.id })}
                 onRunLive={isOwn ? () => onNav('live', { quizId: q.id }) : null}
                 onDelete={isOwn ? () => setConfirmDelete(q) : null}
@@ -229,6 +230,7 @@ function Dashboard({ onNav }) {
           quizzes={filtered}
           myUsername={u.username}
           onOpen={(id) => onNav('editor', { quizId: id })}
+          onDetail={(id) => onNav('quiz', { id })}
           onPlay={(id) => onNav('player', { quizId: id })}
           onRunLive={(id) => onNav('live', { quizId: id })}
           onDelete={(q) => setConfirmDelete(q)}
@@ -314,7 +316,7 @@ function QuizCardSkeleton() {
 }
 
 // === QuizCard ===
-function QuizCard({ quiz, isOwn, onOpen, onPlay, onRunLive, onDelete, onDuplicate, onSetCover, onClearCover, onCropCover, onTogglePublic, delay }) {
+function QuizCard({ quiz, isOwn, onOpen, onDetail, onPlay, onRunLive, onDelete, onDuplicate, onSetCover, onClearCover, onCropCover, onTogglePublic, delay }) {
   const topic = window.TOPIC_BY_CODE[quiz.topic] || { label: quiz.topic, hue: 200 };
   const fileInput = useRef(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -363,6 +365,7 @@ function QuizCard({ quiz, isOwn, onOpen, onPlay, onRunLive, onDelete, onDuplicat
 
   const handleCardClick = () => {
     if (onOpen) onOpen();
+    else if (onDetail) onDetail();
     else onPlay();
   };
 
@@ -740,7 +743,7 @@ function HoloCardStyles() {
 }
 
 // === List view ===
-function QuizListView({ quizzes, myUsername, onOpen, onPlay, onRunLive, onDelete, onDuplicate, onTogglePublic }) {
+function QuizListView({ quizzes, myUsername, onOpen, onDetail, onPlay, onRunLive, onDelete, onDuplicate, onTogglePublic }) {
   return (
     <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
       <div className="quiz-list-header">
@@ -758,7 +761,7 @@ function QuizListView({ quizzes, myUsername, onOpen, onPlay, onRunLive, onDelete
         return (
           <div
             key={q.id}
-            onClick={() => isOwn ? onOpen(q.id) : onPlay(q.id)}
+            onClick={() => isOwn ? onOpen(q.id) : (onDetail ? onDetail(q.id) : onPlay(q.id))}
             className="quiz-row"
           >
             <div className="qlc-title" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>

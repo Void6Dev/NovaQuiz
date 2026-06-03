@@ -39,18 +39,30 @@ urlpatterns = [
     path('quizzes/<int:quiz_id>/questions/<int:question_id>/image/',  views.api_question_image_upload),
 
     # Profile & Analytics
-    path('analytics/',     views.api_analytics),
-    path('profile/stats/', views.api_profile_stats),
+    path('analytics/',        views.api_analytics),
+    path('analytics/export/', views.api_analytics_export),
+    path('profile/stats/',    views.api_profile_stats),
+
+    # Social
+    path('quizzes/<int:quiz_id>/vote/',              views.api_quiz_vote),
+    path('quizzes/<int:quiz_id>/comments/',          views.api_quiz_comments),
+    path('comments/<int:comment_id>/',               views.api_comment_detail),
+    path('comments/<int:comment_id>/vote/',          views.api_comment_vote),
+
+    # Public profiles
+    path('users/<str:username>/', views.api_user_profile),
 
     # Sessions
-    path('sessions/',                          views.api_session_list),
-    path('sessions/create/',                   views.api_session_create),
-    path('sessions/join/',                     views.api_session_join),
-    path('sessions/<int:session_id>/',         views.api_session_detail),
-    path('sessions/<int:session_id>/start/',   views.api_session_start),
-    path('sessions/<int:session_id>/answer/',  views.api_session_answer),
-    path('sessions/<int:session_id>/kick/',    views.api_session_kick),
-    path('sessions/<int:session_id>/end/',     views.api_session_end),
-    path('sessions/<int:session_id>/results/', views.api_session_results),
+    path('sessions/',                                    views.api_session_list),
+    path('sessions/create/',                             views.api_session_create),
+    path('sessions/join/',                               views.api_session_join),
+    path('sessions/<int:session_id>/',                   views.api_session_detail),
+    path('sessions/<int:session_id>/start/',             views.api_session_start),
+    path('sessions/<int:session_id>/answer/',            views.api_session_answer),
+    path('sessions/<int:session_id>/kick/',              views.api_session_kick),
+    path('sessions/<int:session_id>/end/',               views.api_session_end),
+    path('sessions/<int:session_id>/results/',           views.api_session_results),
+    path('sessions/<int:session_id>/teams/',             views.api_session_teams),
+    path('sessions/<int:session_id>/join-team/',         views.api_session_join_team),
     path('sessions/<int:session_id>/questions/<int:question_id>/status/', views.api_session_question_status),
 ]

@@ -106,8 +106,10 @@
   }
 
   window.API = {
-    get: function (path) { return call('GET', path); },
-    post: function (path, body) { return call('POST', path, body); },
+    get:    function (path)        { return call('GET',    path);       },
+    post:   function (path, body)  { return call('POST',   path, body); },
+    patch:  function (path, body)  { return call('PATCH',  path, body); },
+    delete: function (path)        { return call('DELETE', path);       },
     upload: upload,
 
     getUser: function () {
