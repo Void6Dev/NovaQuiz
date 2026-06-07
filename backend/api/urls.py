@@ -31,6 +31,7 @@ urlpatterns = [
     path('quizzes/<int:quiz_id>/delete/',         views.api_quiz_delete),
     path('quizzes/<int:quiz_id>/image/',          views.api_quiz_image_upload),
     path('quizzes/<int:quiz_id>/duplicate/',      views.api_quiz_duplicate),
+    path('quizzes/<int:quiz_id>/similar/',        views.api_quiz_similar),
     path('quizzes/<int:quiz_id>/practice/',       views.api_quiz_practice),
     path('quizzes/<int:quiz_id>/questions/add/',     views.api_question_create),
     path('quizzes/<int:quiz_id>/questions/reorder/', views.api_questions_reorder),
@@ -51,6 +52,10 @@ urlpatterns = [
 
     # Public profiles
     path('users/<str:username>/', views.api_user_profile),
+
+    # Moderator admin
+    path('admin/users/',                        views.api_admin_users),
+    path('admin/users/<int:user_id>/permission/', views.api_admin_set_permission),
 
     # Sessions
     path('sessions/',                                    views.api_session_list),

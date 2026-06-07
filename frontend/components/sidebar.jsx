@@ -2,6 +2,75 @@
 // Used on dashboard, sessions, analytics, settings.
 // Navigates between pages via window.navigate(screen).
 
+// ── Notification bell ─────────────────────────────────────────────────────────
+function NotificationBell({ compact = false }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const unread = 0; // placeholder
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        className="btn btn--ghost btn--icon"
+        style={{ position: 'relative', color: open ? 'var(--text)' : 'var(--text-muted)', ...(compact ? {} : { width: '100%', justifyContent: 'flex-start', gap: 9, padding: '7px 10px', borderRadius: 'var(--r-sm)', fontSize: 13, fontWeight: 400 }) }}
+        onClick={() => setOpen(o => !o)}
+        title="Notifications"
+      >
+        <span style={{ position: 'relative', display: 'inline-flex' }}>
+          <Icon name="bell" size={compact ? 18 : 17} />
+          {unread > 0 && (
+            <span style={{
+              position: 'absolute', top: -4, right: -4,
+              minWidth: 14, height: 14, borderRadius: 99,
+              background: 'var(--danger)', color: '#fff',
+              fontSize: 9, fontWeight: 700, lineHeight: '14px',
+              textAlign: 'center', padding: '0 3px',
+              border: '1.5px solid var(--bg)',
+            }}>{unread}</span>
+          )}
+        </span>
+        {!compact && <span>Notifications</span>}
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute',
+          ...(compact
+            ? { bottom: '110%', right: 0 }
+            : { bottom: '110%', left: 0, right: 0 }),
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--r-md)',
+          boxShadow: 'var(--shadow-lg)',
+          width: compact ? 280 : undefined,
+          minWidth: 240,
+          zIndex: 200,
+          overflow: 'hidden',
+        }}>
+          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>Notifications</span>
+            {unread > 0 && <span style={{ fontSize: 11, color: 'var(--accent-strong)', fontWeight: 600 }}>{unread} new</span>}
+          </div>
+          <div style={{ padding: '32px 16px', textAlign: 'center' }}>
+            <Icon name="bell" size={28} style={{ color: 'var(--text-faint)', marginBottom: 10 }} />
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>No notifications yet</div>
+            <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 4 }}>We'll let you know when something happens</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+window.NotificationBell = NotificationBell;
+
 function Sidebar({ current, onLogout }) {
   window.useLang(); // re-render when language changes
 
@@ -16,7 +85,8 @@ function Sidebar({ current, onLogout }) {
     { id: 'profile',   label: t('nav.you'),       icon: 'user'   },
   ];
   const bottom = [
-    { id: 'settings', label: t('nav.settings'), icon: 'settings' },
+    { id: 'settings',   label: t('nav.settings'),   icon: 'settings'  },
+    ...(u.permission === 'moderator' ? [{ id: 'styleguide', label: 'Styleguide', icon: 'sparkle' }] : []),
   ];
 
   return (
@@ -88,6 +158,8 @@ function Sidebar({ current, onLogout }) {
 
       {/* Bottom divider */}
       <div style={{ height: 1, background: 'var(--border)', margin: '4px 2px 6px' }} />
+
+      <NotificationBell />
 
       {bottom.map(item => (
         <a
@@ -190,7 +262,8 @@ function MobileHeader({ current }) {
         <NQLogo size={26} />
         <span>Nova<span style={{ color: 'var(--accent)' }}>Quiz</span></span>
       </div>
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <NotificationBell compact />
         <button
           className="btn btn--ghost btn--icon"
           style={{ color: 'var(--text-muted)' }}

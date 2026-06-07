@@ -49,6 +49,11 @@ function PageShell({ layout = 'app', current, children, theme: themeOverride, on
         final = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
       }
       document.documentElement.setAttribute('data-theme', final);
+      if (mode === 'custom') {
+        const p = (_shellLoadPrefs().customPalette) || { accentH: 130, tintH: 270 };
+        document.documentElement.style.setProperty('--custom-accent-h', p.accentH);
+        document.documentElement.style.setProperty('--custom-tint-h', p.tintH);
+      }
     };
     apply(theme);
     if (theme === 'system') {

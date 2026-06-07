@@ -37,6 +37,18 @@ def login_required(view_func):
     return wrapper
 
 
+def moderator_required(view_func):
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return JsonResponse({'error': 'Unauthorized'}, status=401)
+        account = getattr(request.user, 'account', None)
+        if not (request.user.is_superuser or (account and account.permission == 'moderator')):
+            return JsonResponse({'error': 'Forbidden'}, status=403)
+        return view_func(request, *args, **kwargs)
+    return wrapper
+
+
 def _json_body(request):
     try:
         return json.loads(request.body)
@@ -60,19 +72,25 @@ def _user_data(user):
     }
 
 
-def _quiz_data(quiz, user=None):
-    qcount = getattr(quiz, 'question_count', None)
-    votes = quiz.votes.aggregate(
-        likes=Count('id', filter=Q(value=1)),
-        dislikes=Count('id', filter=Q(value=-1)),
-    )
+def _quiz_data(quiz, user=None, include_stats=False):
+    qcount   = getattr(quiz, 'question_count', None)
+    # Use DB-level annotations when present (avoids N+1 on list views)
+    likes    = getattr(quiz, 'likes',    None)
+    dislikes = getattr(quiz, 'dislikes', None)
+    if likes is None or dislikes is None:
+        votes    = quiz.votes.aggregate(
+            likes=Count('id', filter=Q(value=1)),
+            dislikes=Count('id', filter=Q(value=-1)),
+        )
+        likes    = votes['likes']    or 0
+        dislikes = votes['dislikes'] or 0
     my_vote = 0
     if user and getattr(user, 'is_authenticated', False):
         try:
             my_vote = QuizVote.objects.get(quiz=quiz, user=user).value
         except QuizVote.DoesNotExist:
             pass
-    return {
+    data = {
         'id': quiz.id,
         'title': quiz.title,
         'topic': quiz.topic,
@@ -84,10 +102,13 @@ def _quiz_data(quiz, user=None):
         'created_at': quiz.created_at.isoformat(),
         'question_count': qcount if qcount is not None else quiz.questions.count(),
         'is_public': quiz.is_public,
-        'likes': votes['likes'] or 0,
-        'dislikes': votes['dislikes'] or 0,
+        'likes': likes,
+        'dislikes': dislikes,
         'my_vote': my_vote,
     }
+    if include_stats:
+        data['comment_count'] = quiz.comments.filter(is_deleted=False).count()
+    return data
 
 
 def _question_data(q):
@@ -567,7 +588,11 @@ def api_workspace_cancel_invite(request, invite_id):
 # ─── QUIZZES ────────────────────────────────────────────────────────────────
 
 def api_quiz_list(request):
-    qs = Quiz.objects.annotate(question_count=Count('questions')).order_by('-created_at')
+    qs = Quiz.objects.annotate(
+        question_count=Count('questions', distinct=True),
+        likes=Count('votes', filter=Q(votes__value=1), distinct=True),
+        dislikes=Count('votes', filter=Q(votes__value=-1), distinct=True),
+    ).order_by('-created_at')
     topic = request.GET.get('topic')
     creator = request.GET.get('creator')
     if request.GET.get('mine') == '1':
@@ -601,8 +626,9 @@ def api_quiz_list(request):
     offset = (page - 1) * page_size
     quizzes = qs[offset:offset + page_size]
 
+    user = request.user if request.user.is_authenticated else None
     return JsonResponse({
-        'quizzes': [_quiz_data(q) for q in quizzes],
+        'quizzes': [_quiz_data(q, user=user) for q in quizzes],
         'total': total,
         'page': page,
         'page_size': page_size,
@@ -637,9 +663,26 @@ def api_quiz_detail(request, quiz_id):
         if not is_workspace_member:
             return JsonResponse({'error': 'Access denied'}, status=403)
     user = request.user if request.user.is_authenticated else None
-    data = _quiz_data(quiz, user=user)
+    data = _quiz_data(quiz, user=user, include_stats=True)
     data['questions'] = [_question_data(q) for q in quiz.questions.all()]
     return JsonResponse(data)
+
+
+def api_quiz_similar(request, quiz_id):
+    quiz = get_object_or_404(Quiz, id=quiz_id, is_public=True)
+    user = request.user if request.user.is_authenticated else None
+    similar = (
+        Quiz.objects
+        .filter(is_public=True, topic=quiz.topic)
+        .exclude(id=quiz_id)
+        .annotate(
+            question_count=Count('questions', distinct=True),
+            likes=Count('votes', filter=Q(votes__value=1), distinct=True),
+            dislikes=Count('votes', filter=Q(votes__value=-1), distinct=True),
+        )
+        .order_by('-likes', '-created_at')[:8]
+    )
+    return JsonResponse({'quizzes': [_quiz_data(q, user=user) for q in similar]})
 
 
 @csrf_exempt
@@ -1381,6 +1424,7 @@ def api_quiz_comments(request, quiz_id):
             return {
                 'id': c.id,
                 'author': c.author.username,
+                'author_permission': acc.permission if acc else 'user',
                 'author_avatar': acc.image.url if acc and acc.image else None,
                 'author_avatar_transform': acc.image_transform if acc else '',
                 'body': '' if c.is_deleted else c.body,
@@ -1392,6 +1436,8 @@ def api_quiz_comments(request, quiz_id):
                 'replies': [_cdata(r, depth + 1) for r in c.replies.all()] if depth < 4 else [],
             }
 
+        if sort == 'new':
+            top_comments = top_comments.order_by('-created_at')
         result = [_cdata(c) for c in top_comments]
         if sort == 'top':
             result.sort(key=lambda c: c['vote_score'], reverse=True)
@@ -1414,6 +1460,7 @@ def api_quiz_comments(request, quiz_id):
         acc = getattr(user, 'account', None)
         return JsonResponse({
             'id': c.id, 'author': user.username,
+            'author_permission': acc.permission if acc else 'user',
             'author_avatar': acc.image.url if acc and acc.image else None,
             'author_avatar_transform': acc.image_transform if acc else '',
             'body': c.body, 'created_at': c.created_at.isoformat(),
@@ -1586,3 +1633,41 @@ def api_user_profile(request, username):
         'activity': activity,
         'topics': topics,
     })
+
+
+# ── Moderator admin ───────────────────────────────────────────────────────────
+
+@csrf_exempt
+@moderator_required
+def api_admin_users(request):
+    q = request.GET.get('q', '').strip()
+    qs = User.objects.select_related('account').order_by('username')
+    if q:
+        qs = qs.filter(Q(username__icontains=q) | Q(email__icontains=q))
+    users = [
+        {
+            'id': u.id,
+            'username': u.username,
+            'name': u.get_full_name() or u.username,
+            'email': u.email,
+            'permission': u.account.permission if hasattr(u, 'account') else 'user',
+        }
+        for u in qs[:50]
+    ]
+    return JsonResponse({'users': users})
+
+
+@csrf_exempt
+@moderator_required
+def api_admin_set_permission(request, user_id):
+    data = _json_body(request)
+    permission = data.get('permission')
+    if permission not in ('user', 'moderator'):
+        return JsonResponse({'error': 'Invalid permission'}, status=400)
+    target = get_object_or_404(User, id=user_id)
+    if target == request.user and permission == 'user':
+        return JsonResponse({'error': 'Cannot demote yourself'}, status=400)
+    account, _ = Account.objects.get_or_create(user=target)
+    account.permission = permission
+    account.save(update_fields=['permission'])
+    return JsonResponse({'ok': True, 'permission': permission})

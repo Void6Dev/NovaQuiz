@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sessions — Quiz</title>
+  <title>Styleguide — Nova Quiz</title>
   <link rel="stylesheet" href="styles.css" />
   <script src="theme-init.js"></script>
 </head>
@@ -17,6 +17,14 @@
   <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 
   <script src="api.js"></script>
+  <script>
+    (function () {
+      var u = window.API.getUser();
+      if (!u || u.permission !== 'moderator') {
+        window.location.replace('dashboard.html');
+      }
+    })();
+  </script>
   <script src="i18n.js"></script>
   <script src="nav.jsx"></script>
   <script type="text/babel" src="tweaks-panel.jsx"></script>
@@ -28,12 +36,12 @@
   <script type="text/babel" src="components/footer.jsx"></script>
   <script type="text/babel" src="components/command-palette.jsx"></script>
   <script type="text/babel" src="shell.jsx"></script>
-  <script type="text/babel" src="screens/sessions.jsx"></script>
+  <script type="text/babel" src="screens/styleguide.jsx"></script>
 
   <script type="text/babel">
     ReactDOM.createRoot(document.getElementById('root')).render(
-      <AppPage current="sessions">
-        <Sessions onNav={(s, p) => window.navigate(s, p)} />
+      <AppPage current="styleguide">
+        <StyleguidePage />
       </AppPage>
     );
   </script>

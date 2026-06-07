@@ -23,7 +23,8 @@ const ROUTES = {
   settings:  'settings.html',
   shared:    'shared.html',
   profile:   'profile.html',
-  quiz:      'quiz.html',
+  quiz:       'quiz.html',
+  styleguide: 'styleguide.html',
 };
 
 var _navTimer = null;

@@ -542,9 +542,29 @@ function AppearanceSettings({ theme, onTheme }) {
   };
 
   const modes = [
-    { mode: 'light',  label: t('appearance.light')  },
-    { mode: 'dark',   label: t('appearance.dark')   },
-    { mode: 'system', label: t('appearance.system') },
+    { mode: 'light',  label: t('appearance.light') },
+    { mode: 'dark',   label: t('appearance.dark')  },
+    { mode: 'custom', label: t('appearance.custom') },
+  ];
+
+  const [palette, setPalette] = useState(() => prefs.customPalette || { accentH: 130, tintH: 270 });
+
+  const applyCustomPalette = (p) => {
+    document.documentElement.style.setProperty('--custom-accent-h', p.accentH);
+    document.documentElement.style.setProperty('--custom-tint-h', p.tintH);
+    const next = { ...prefs, customPalette: p };
+    setPrefs(next);
+    savePrefs(next);
+    setPalette(p);
+  };
+
+  const PALETTE_PRESETS = [
+    { name: 'Nova',    accentH: 130, tintH: 270 },
+    { name: 'Ocean',   accentH: 210, tintH: 220 },
+    { name: 'Rose',    accentH: 350, tintH: 315 },
+    { name: 'Amber',   accentH: 65,  tintH:  45 },
+    { name: 'Violet',  accentH: 280, tintH: 260 },
+    { name: 'Slate',   accentH: 200, tintH: 240 },
   ];
 
   return (
@@ -554,7 +574,13 @@ function AppearanceSettings({ theme, onTheme }) {
           {modes.map(({ mode, label }) => (
             <button
               key={mode}
-              onClick={() => { onTheme(mode); setPref('theme', mode); }}
+              onClick={() => {
+              onTheme(mode);
+              const next = { ...prefs, theme: mode };
+              if (mode === 'custom') next.customPalette = next.customPalette || palette;
+              setPrefs(next);
+              savePrefs(next);
+            }}
               style={{
                 padding: 0, background: 'transparent', cursor: 'pointer',
                 border: '2px solid ' + (theme === mode ? 'var(--text)' : 'var(--border)'),
@@ -563,11 +589,8 @@ function AppearanceSettings({ theme, onTheme }) {
               }}
             >
               <div style={{ aspectRatio: '4/3', position: 'relative' }}>
-                {mode === 'system' ? (
-                  <div style={{ display: 'flex', height: '100%' }}>
-                    <div style={{ flex: 1 }}><ThemePreview dark={false} /></div>
-                    <div style={{ flex: 1 }}><ThemePreview dark={true} /></div>
-                  </div>
+                {mode === 'custom' ? (
+                  <ThemePreview dark={true} accentH={palette.accentH} tintH={palette.tintH} />
                 ) : (
                   <ThemePreview dark={mode === 'dark'} />
                 )}
@@ -589,6 +612,65 @@ function AppearanceSettings({ theme, onTheme }) {
             </button>
           ))}
         </div>
+
+        {theme === 'custom' && (
+          <div style={{ marginTop: 16, padding: 20, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 14 }}>
+              {t('appearance.palette')}
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+              {PALETTE_PRESETS.map(p => {
+                const accent = `oklch(78% 0.18 ${p.accentH})`;
+                const tint   = `oklch(17% 0.007 ${p.tintH})`;
+                const active = palette.accentH === p.accentH && palette.tintH === p.tintH;
+                return (
+                  <button
+                    key={p.name}
+                    onClick={() => applyCustomPalette(p)}
+                    title={p.name}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px',
+                      background: active ? 'var(--surface-2)' : 'transparent',
+                      border: '1.5px solid ' + (active ? 'var(--text)' : 'var(--border)'),
+                      borderRadius: 'var(--r-md)', cursor: 'pointer',
+                      transition: 'border-color 150ms, background 150ms',
+                    }}
+                  >
+                    <span style={{ display: 'flex', gap: 3 }}>
+                      <span style={{ width: 10, height: 10, borderRadius: 99, background: tint, border: '1px solid oklch(30% 0 0 / 0.3)' }} />
+                      <span style={{ width: 10, height: 10, borderRadius: 99, background: accent }} />
+                    </span>
+                    <span style={{ fontSize: 12, fontWeight: active ? 600 : 400, color: active ? 'var(--text)' : 'var(--text-muted)' }}>{p.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', marginBottom: 8 }}>{t('appearance.accent_color')}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <input
+                    type="range" min="0" max="359" value={palette.accentH}
+                    onChange={e => applyCustomPalette({ ...palette, accentH: +e.target.value })}
+                    style={{ flex: 1, accentColor: `oklch(78% 0.18 ${palette.accentH})` }}
+                  />
+                  <span style={{ width: 22, height: 22, borderRadius: 99, background: `oklch(78% 0.18 ${palette.accentH})`, flexShrink: 0, border: '1px solid var(--border)' }} />
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', marginBottom: 8 }}>{t('appearance.tint_color')}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <input
+                    type="range" min="0" max="359" value={palette.tintH}
+                    onChange={e => applyCustomPalette({ ...palette, tintH: +e.target.value })}
+                    style={{ flex: 1, accentColor: `oklch(78% 0.10 ${palette.tintH})` }}
+                  />
+                  <span style={{ width: 22, height: 22, borderRadius: 99, background: `oklch(17% 0.008 ${palette.tintH})`, flexShrink: 0, border: '1px solid var(--border)' }} />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </SettingsSection>
 
       <SettingsSection title={t('appearance.display')}>
@@ -619,12 +701,14 @@ function AppearanceSettings({ theme, onTheme }) {
   );
 }
 
-function ThemePreview({ dark }) {
-  const bg      = dark ? 'oklch(13% 0.006 270)' : 'oklch(98% 0.003 90)';
-  const surface = dark ? 'oklch(17% 0.006 270)' : 'oklch(100% 0 0)';
-  const border  = dark ? 'oklch(24% 0.008 270)' : 'oklch(92% 0.004 90)';
+function ThemePreview({ dark, accentH, tintH }) {
+  const aH = accentH ?? 130;
+  const tH = tintH ?? (dark ? 270 : 90);
+  const bg      = dark ? `oklch(13% 0.006 ${tH})` : `oklch(98% 0.003 ${tH})`;
+  const surface = dark ? `oklch(17% 0.006 ${tH})` : 'oklch(100% 0 0)';
+  const border  = dark ? `oklch(24% 0.008 ${tH})` : `oklch(92% 0.004 ${tH})`;
   const text    = dark ? 'oklch(97% 0.003 90)'  : 'oklch(15% 0.005 270)';
-  const muted   = dark ? 'oklch(60% 0.006 270)' : 'oklch(70% 0.005 270)';
+  const muted   = dark ? `oklch(60% 0.006 ${tH})` : `oklch(70% 0.005 ${tH})`;
   return (
     <div style={{ width: '100%', height: '100%', background: bg, padding: 10, gap: 6, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ height: 10, background: surface, border: `1px solid ${border}`, borderRadius: 3, display: 'flex', alignItems: 'center', padding: '0 4px', gap: 3 }}>
@@ -641,7 +725,7 @@ function ThemePreview({ dark }) {
           <div style={{ height: 4, width: '60%', background: text, borderRadius: 1 }} />
           <div style={{ height: 3, width: '85%', background: muted, opacity: 0.4, borderRadius: 1 }} />
           <div style={{ height: 3, width: '70%', background: muted, opacity: 0.4, borderRadius: 1 }} />
-          <div style={{ marginTop: 'auto', height: 6, width: 16, background: 'oklch(85% 0.18 130)', borderRadius: 2 }} />
+          <div style={{ marginTop: 'auto', height: 6, width: 16, background: `oklch(82% 0.18 ${aH})`, borderRadius: 2 }} />
         </div>
       </div>
     </div>

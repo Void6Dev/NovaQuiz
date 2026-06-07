@@ -48,6 +48,10 @@ const Icon = ({ name, size = 18, ...rest }) => {
     lock:   <><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>,
     unlock: <><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></>,
     crop:   <><path d="M6 2V17H21"/><path d="M18 22V7H3"/></>,
+    arrowUp:   <><path d="M12 19V5"/><path d="M6 11L12 5L18 11"/></>,
+    arrowDown: <><path d="M12 5V19"/><path d="M18 13L12 19L6 13"/></>,
+    reply:     <><path d="M9 11L5 15L9 19"/><path d="M5 15H15A4 4 0 0 0 15 7H12"/></>,
+    message:   <><path d="M21 15A2 2 0 0 1 19 17H7L3 21V5A2 2 0 0 1 5 3H19A2 2 0 0 1 21 5Z"/></>,
   };
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" {...rest}>

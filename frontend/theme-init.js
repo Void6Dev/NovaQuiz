@@ -9,6 +9,11 @@
         theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
       }
       document.documentElement.setAttribute('data-theme', theme);
+      if (theme === 'custom') {
+        var p = prefs.customPalette || {};
+        document.documentElement.style.setProperty('--custom-accent-h', p.accentH || 130);
+        document.documentElement.style.setProperty('--custom-tint-h', p.tintH || 270);
+      }
     }
     if (prefs.reduceMotion)  document.documentElement.classList.add('reduce-motion');
     if (prefs.compactDensity) document.documentElement.classList.add('compact');

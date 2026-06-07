@@ -19,6 +19,7 @@ from django.contrib import admin
 from django.urls import path, include, re_path
 from django.conf import settings
 from django.views.static import serve
+from django.contrib.staticfiles.views import serve as static_serve
 
 mimetypes.add_type('text/javascript', '.jsx')
 mimetypes.add_type('text/javascript', '.js')
@@ -30,6 +31,7 @@ def serve_index(request):
 
 urlpatterns = (
     [path('media/<path:path>', serve, {'document_root': settings.MEDIA_ROOT})]
+    + [re_path(r'^static/(?P<path>.+)$', static_serve, kwargs={'insecure': True})]
     + [
         path('admin/', admin.site.urls),
         path('api/', include('api.urls')),

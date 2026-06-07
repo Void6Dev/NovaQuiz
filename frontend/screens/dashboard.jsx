@@ -409,11 +409,6 @@ function QuizCard({ quiz, isOwn, onOpen, onDetail, onPlay, onRunLive, onDelete, 
                 }
               </span>
             )}
-            {!isOwn && (
-              <span className="pill holo-card__status" style={{ fontSize: 10 }}>
-                <Icon name="user" size={10} /> @{quiz.creator?.username || '?'}
-              </span>
-            )}
           </div>
 
           {isOwn && (
@@ -511,13 +506,10 @@ function QuizCard({ quiz, isOwn, onOpen, onDetail, onPlay, onRunLive, onDelete, 
           <div className="holo-card__meta">
             <span><span className="mono holo-card__num">{quiz.questions}</span> Qs</span>
             <span className="holo-card__sep">·</span>
-            <span><span className="mono holo-card__num">{quiz.plays.toLocaleString()}</span> {t('dash.plays')}</span>
-            {quiz.avgScore != null && (
-              <>
-                <span className="holo-card__sep">·</span>
-                <span><span className="mono holo-card__num">{quiz.avgScore}%</span> {t('dash.avg')}</span>
-              </>
-            )}
+            <Icon name="arrowUp" size={11} style={{ color: 'var(--accent-strong)' }} />
+            <span className="holo-card__num mono">{quiz.likes ?? 0}</span>
+            <Icon name="arrowDown" size={11} style={{ color: 'oklch(52% 0.18 25)' }} />
+            <span className="holo-card__num mono">{quiz.dislikes ?? 0}</span>
             <span className="holo-card__edited">{quiz.lastEdited}</span>
           </div>
         </div>
@@ -751,7 +743,7 @@ function QuizListView({ quizzes, myUsername, onOpen, onDetail, onPlay, onRunLive
         <div className="qlc-meta">{t('dash.col_author')}</div>
         <div className="qlc-meta">{t('dash.col_status')}</div>
         <div className="qlc-meta">{t('dash.col_qs')}</div>
-        <div className="qlc-meta">{t('dash.col_plays')}</div>
+        <div className="qlc-meta">Likes</div>
         <div className="qlc-meta">{t('dash.col_updated')}</div>
         <div />
       </div>
@@ -798,7 +790,10 @@ function QuizListView({ quizzes, myUsername, onOpen, onDetail, onPlay, onRunLive
               )}
             </div>
             <div className="qlc-meta mono" style={{ fontSize: 13 }}>{q.questions}</div>
-            <div className="qlc-meta mono" style={{ fontSize: 13 }}>{q.plays.toLocaleString()}</div>
+            <div className="qlc-meta" style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Icon name="arrowUp" size={11} style={{ color: 'var(--accent-strong)' }} />{q.likes ?? 0}
+              <Icon name="arrowDown" size={11} style={{ color: 'oklch(52% 0.18 25)' }} />{q.dislikes ?? 0}
+            </div>
             <div className="qlc-meta" style={{ fontSize: 13, color: 'var(--text-muted)' }}>{q.lastEdited}</div>
             <div className="quiz-row__actions" onClick={e => e.stopPropagation()}>
               <Tooltip label={t('dash.practice')}><button className="btn btn--ghost btn--icon" onClick={() => onPlay(q.id)}><Icon name="play" size={14} /></button></Tooltip>

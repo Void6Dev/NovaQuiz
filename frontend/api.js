@@ -38,8 +38,6 @@
       title: q.title,
       description: q.description || '',
       questions: q.question_count || 0,
-      plays: 0,
-      avgScore: null,
       lastEdited: q.created_at ? new Date(q.created_at).toLocaleDateString('ru-RU') : '—',
       topic: q.topic,
       is_public: q.is_public !== undefined ? q.is_public : true,
@@ -47,6 +45,9 @@
       image: q.image || null,
       coverTransform: parseTransform(q.cover_transform),
       creator: { username: q.creator, name: q.creator },
+      likes: q.likes || 0,
+      dislikes: q.dislikes || 0,
+      my_vote: q.my_vote || 0,
     };
   }
 

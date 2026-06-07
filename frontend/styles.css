@@ -22,8 +22,22 @@
   --danger-soft: oklch(95% 0.04 25);      /* soft danger background (chips, hovers) */
   --danger-soft-border: oklch(88% 0.08 25);
   --warn: oklch(78% 0.16 75);
+  --warn-text: oklch(48% 0.16 75);
+  --warn-soft: oklch(94% 0.06 75);
+  --warn-soft-border: oklch(88% 0.10 75);
   --mod: oklch(80% 0.14 220);             /* moderator badge fill */
   --mod-fg: oklch(25% 0.06 220);          /* moderator badge text */
+  --success: oklch(60% 0.18 145);
+  --success-fg: oklch(99% 0 0);
+  --success-text: oklch(45% 0.18 145);
+  --success-soft: oklch(93% 0.06 145);
+  --success-soft-border: oklch(86% 0.10 145);
+  --info: oklch(58% 0.18 240);
+  --info-fg: oklch(99% 0 0);
+  --info-text: oklch(42% 0.18 240);
+  --info-soft: oklch(93% 0.06 240);
+  --info-soft-border: oklch(86% 0.10 240);
+  --surface-3: oklch(95% 0.004 90);
 
   --shadow-sm: 0 1px 3px oklch(0% 0 0 / 0.07), 0 1px 2px oklch(0% 0 0 / 0.04);
   --shadow-md: 0 4px 20px oklch(0% 0 0 / 0.09), 0 2px 6px oklch(0% 0 0 / 0.05);
@@ -56,7 +70,39 @@
   --danger-soft-border: oklch(40% 0.10 25);
   --mod: oklch(45% 0.12 220);
   --mod-fg: oklch(90% 0.06 220);
+  --warn-text: oklch(72% 0.16 75);
+  --warn-soft: oklch(25% 0.08 75);
+  --warn-soft-border: oklch(35% 0.10 75);
+  --success-text: oklch(72% 0.16 145);
+  --success-soft: oklch(25% 0.08 145);
+  --success-soft-border: oklch(35% 0.10 145);
+  --info-text: oklch(72% 0.16 240);
+  --info-soft: oklch(25% 0.08 240);
+  --info-soft-border: oklch(35% 0.10 240);
+  --surface-3: oklch(23% 0.008 270);
 
+  --shadow-sm: 0 1px 4px oklch(0% 0 0 / 0.45), 0 1px 2px oklch(0% 0 0 / 0.30);
+  --shadow-md: 0 6px 24px oklch(0% 0 0 / 0.45), 0 2px 6px oklch(0% 0 0 / 0.30);
+  --shadow-lg: 0 32px 64px oklch(0% 0 0 / 0.60), 0 8px 18px oklch(0% 0 0 / 0.30);
+}
+
+[data-theme="custom"] {
+  --bg: oklch(13% 0.006 var(--custom-tint-h, 270));
+  --bg-2: oklch(16% 0.006 var(--custom-tint-h, 270));
+  --surface: oklch(17% 0.006 var(--custom-tint-h, 270));
+  --surface-2: oklch(20% 0.007 var(--custom-tint-h, 270));
+  --surface-3: oklch(23% 0.008 var(--custom-tint-h, 270));
+  --border: oklch(24% 0.008 var(--custom-tint-h, 270));
+  --border-strong: oklch(30% 0.010 var(--custom-tint-h, 270));
+  --text: oklch(97% 0.003 90);
+  --text-muted: oklch(68% 0.006 var(--custom-tint-h, 270));
+  --text-faint: oklch(50% 0.006 var(--custom-tint-h, 270));
+  --accent: oklch(82% 0.18 var(--custom-accent-h, 130));
+  --accent-strong: oklch(74% 0.20 var(--custom-accent-h, 130));
+  --accent-fg: oklch(18% 0.06 var(--custom-accent-h, 130));
+  --danger-text: oklch(72% 0.16 25);
+  --danger-soft: oklch(30% 0.08 25);
+  --danger-soft-border: oklch(40% 0.10 25);
   --shadow-sm: 0 1px 4px oklch(0% 0 0 / 0.45), 0 1px 2px oklch(0% 0 0 / 0.30);
   --shadow-md: 0 6px 24px oklch(0% 0 0 / 0.45), 0 2px 6px oklch(0% 0 0 / 0.30);
   --shadow-lg: 0 32px 64px oklch(0% 0 0 / 0.60), 0 8px 18px oklch(0% 0 0 / 0.30);
@@ -870,3 +916,88 @@ a:not(.nav-item):not(.btn):hover { opacity: 0.75; }
 .markdown-body h1, .markdown-body h2, .markdown-body h3 { font-weight: 600; margin: 0.5em 0 0.3em; letter-spacing: -0.01em; }
 .markdown-body blockquote { border-left: 3px solid var(--border-strong); margin: 0.4em 0; padding: 4px 12px; color: var(--text-muted); }
 .markdown-body a { color: var(--accent-strong); text-decoration: underline; }
+
+/* === Page splash / loading screen === */
+#splash {
+  position: fixed; inset: 0; z-index: 9999;
+  background: var(--bg);
+  display: grid; place-items: center;
+  transition: opacity 280ms ease;
+  pointer-events: none;
+}
+#splash.splash--has-sidebar { left: 240px; }
+#splash__ring {
+  width: 30px; height: 30px;
+  border: 2.5px solid var(--border);
+  border-top-color: var(--text);
+  border-radius: 50%;
+  animation: splash-spin 0.75s linear infinite;
+}
+@keyframes splash-spin { to { transform: rotate(360deg); } }
+@media (max-width: 1024px) and (min-width: 769px) { #splash.splash--has-sidebar { left: 200px; } }
+@media (max-width: 768px)  { #splash.splash--has-sidebar { left: 0; } }
+
+/* === Quiz detail page layout === */
+.qd-layout        { display: grid; grid-template-columns: 1fr 300px; gap: 20px; align-items: start; }
+.qd-main          { display: flex; flex-direction: column; gap: 20px; }
+.qd-sidebar       { display: flex; flex-direction: column; gap: 16px; }
+
+.qd-stats         { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+.qd-stat          { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 10px; background: var(--bg-2); border-radius: var(--r-md); text-align: center; }
+.qd-stat__val     { font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
+.qd-stat__label   { font-size: 10px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+
+.sim-card         { display: flex; gap: 12px; padding: 10px 16px; cursor: pointer; transition: background 120ms var(--ease); }
+.sim-card:hover   { background: var(--bg-2); }
+.sim-card__thumb  { width: 52px; height: 52px; border-radius: 8px; flex-shrink: 0; overflow: hidden; background: var(--bg-2); position: relative; }
+.sim-card__title  { font-size: 13px; font-weight: 600; line-height: 1.35; margin-bottom: 4px; }
+.sim-card__meta   { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-faint); }
+
+@media (max-width: 900px) {
+  .qd-layout      { grid-template-columns: 1fr; }
+  .qd-stats       { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* === Quiz detail page === */
+.qd-cover         { height: 200px; position: relative; overflow: hidden; }
+.qd-cover--empty  { height: 120px; display: flex; align-items: center; justify-content: center; }
+.qd-cover-icon    { width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; }
+.qd-body          { padding: 20px 24px; }
+.qd-meta          { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; font-size: 13px; color: var(--text-faint); }
+.qd-actions       { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.vote-btn { display: flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: var(--r-md); font-weight: 600; font-size: 14px; border: 1px solid var(--border); background: var(--surface); transition: all 150ms var(--ease); }
+.vote-btn--like.vote-btn--active    { background: var(--accent); color: var(--accent-fg); border-color: transparent; }
+.vote-btn--dislike.vote-btn--active { background: oklch(62% 0.18 25 / 0.15); color: oklch(50% 0.18 25); border-color: oklch(62% 0.18 25); }
+
+.qd-question                     { display: flex; align-items: flex-start; gap: 14px; padding: 11px 20px; }
+.qd-question + .qd-question      { border-top: 1px solid var(--border); }
+.qd-question__num  { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-faint); width: 22px; flex-shrink: 0; padding-top: 2px; }
+.qd-question__text { font-size: 14px; font-weight: 500; line-height: 1.4; }
+.qd-question__meta { font-size: 11px; color: var(--text-faint); margin-top: 3px; }
+
+/* ── Comment thread ─────────────────────────────────────────────────────────── */
+.comment            { display: flex; gap: 10px; margin-bottom: 14px; }
+.comment__col       { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+.comment__line      { width: 2px; flex: 1; background: var(--border); border-radius: 1px; margin-top: 6px; cursor: pointer; min-height: 20px; }
+.comment__content   { flex: 1; min-width: 0; }
+.comment__header    { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; flex-wrap: wrap; }
+.comment__author    { font-weight: 600; font-size: 13px; background: none; padding: 0; cursor: pointer; }
+.comment__time      { font-size: 11px; color: var(--text-faint); }
+.comment__score     { font-size: 11px; font-weight: 700; }
+.comment__score--pos { color: var(--accent-strong); }
+.comment__score--neg { color: oklch(50% 0.18 25); }
+.comment__actions   { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
+.comment__vote      { background: none; padding: 0; font-size: 14px; opacity: 0.5; transition: opacity 120ms; }
+.comment__vote--active { opacity: 1; }
+.comment__action    { display: inline-flex; align-items: center; gap: 4px; background: none; padding: 0; font-size: 12px; color: var(--text-faint); cursor: pointer; transition: color 120ms; }
+.comment__action:hover { color: var(--text); }
+.comment__action--danger { color: oklch(52% 0.18 25); }
+.comment__replies   { margin-top: 8px; }
+
+/* ── Comment editor ─────────────────────────────────────────────────────────── */
+.comment-editor__tabs    { display: flex; gap: 12px; margin-bottom: 6px; }
+.comment-editor__tab     { font-size: 12px; font-weight: 500; background: none; padding: 0 0 3px; border-bottom: 2px solid transparent; cursor: pointer; color: var(--text-faint); transition: color 120ms, border-color 120ms; }
+.comment-editor__tab--active { color: var(--text); border-bottom-color: var(--accent); }
+.comment-editor__preview { min-height: 60px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; font-size: 14px; line-height: 1.6; }
+.comment-editor__footer  { display: flex; gap: 8px; margin-top: 8px; }
