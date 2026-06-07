@@ -201,7 +201,18 @@ def api_login(request):
     if _check_login_rate_limit(request):
         return JsonResponse({'error': 'Too many login attempts. Try again later.'}, status=429)
     data = _json_body(request)
-    user = authenticate(request, username=data.get('username'), password=data.get('password'))
+    raw = (data.get('username') or '').strip()
+    password = data.get('password', '')
+
+    # Allow login with email address
+    username = raw
+    if '@' in raw:
+        try:
+            username = User.objects.get(email__iexact=raw).username
+        except User.DoesNotExist:
+            pass
+
+    user = authenticate(request, username=username, password=password)
     if user is None:
         return JsonResponse({'error': 'Invalid username or password'}, status=401)
     login(request, user)
@@ -356,6 +367,140 @@ def api_reset_password(request):
     user.set_password(new_password)
     user.save()
     return JsonResponse({'status': 'ok'})
+
+
+# ─── SOCIAL AUTH ────────────────────────────────────────────────────────────
+
+def _get_or_create_social_user(*, email, name='', username_hint=''):
+    """Find existing user by email or create a new account from a social login."""
+    try:
+        return User.objects.get(email__iexact=email)
+    except User.DoesNotExist:
+        pass
+
+    base = (
+        ''.join(c for c in username_hint if c.isalnum() or c in '_.')[:20]
+        or email.split('@')[0][:20]
+        or 'user'
+    )
+    username, counter = base, 1
+    while User.objects.filter(username=username).exists():
+        username = f'{base}{counter}'
+        counter += 1
+
+    user = User.objects.create_user(username=username, email=email, password=None)
+    if name:
+        parts = name.strip().split(' ', 1)
+        user.first_name = parts[0]
+        user.last_name  = parts[1] if len(parts) > 1 else ''
+        user.save(update_fields=['first_name', 'last_name'])
+    Account.objects.create(user=user)
+    return user
+
+
+def api_public_config(request):
+    """Expose public OAuth client IDs to the frontend (no secrets)."""
+    return JsonResponse({
+        'google_client_id':  settings.GOOGLE_CLIENT_ID,
+        'discord_client_id': settings.DISCORD_CLIENT_ID,
+    })
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def api_google_auth(request):
+    import urllib.request as _req
+
+    data = _json_body(request)
+    access_token = (data.get('access_token') or '').strip()
+    if not access_token:
+        return JsonResponse({'error': 'No access token provided'}, status=400)
+
+    # Verify token and fetch user info from Google
+    try:
+        req = _req.Request(
+            'https://www.googleapis.com/oauth2/v3/userinfo',
+            headers={'Authorization': f'Bearer {access_token}'},
+        )
+        with _req.urlopen(req, timeout=8) as resp:
+            info = json.loads(resp.read())
+    except Exception:
+        return JsonResponse({'error': 'Failed to verify Google token'}, status=400)
+
+    email = info.get('email')
+    if not email or not info.get('email_verified'):
+        return JsonResponse({'error': 'Google email not verified'}, status=400)
+
+    user = _get_or_create_social_user(
+        email=email,
+        name=info.get('name', ''),
+        username_hint=email.split('@')[0],
+    )
+    login(request, user)
+    return JsonResponse(_user_data(user))
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def api_discord_auth(request):
+    import urllib.request as _req
+    import urllib.parse as _parse
+
+    data = _json_body(request)
+    code         = (data.get('code') or '').strip()
+    redirect_uri = (data.get('redirect_uri') or '').strip()
+
+    if not code or not redirect_uri:
+        return JsonResponse({'error': 'code and redirect_uri are required'}, status=400)
+
+    if not settings.DISCORD_CLIENT_ID or not settings.DISCORD_CLIENT_SECRET:
+        return JsonResponse({'error': 'Discord login not configured'}, status=503)
+
+    # Exchange auth code for access token
+    token_body = _parse.urlencode({
+        'client_id':     settings.DISCORD_CLIENT_ID,
+        'client_secret': settings.DISCORD_CLIENT_SECRET,
+        'grant_type':    'authorization_code',
+        'code':          code,
+        'redirect_uri':  redirect_uri,
+    }).encode()
+    try:
+        req = _req.Request(
+            'https://discord.com/api/oauth2/token',
+            data=token_body,
+            headers={'Content-Type': 'application/x-www-form-urlencoded'},
+        )
+        with _req.urlopen(req, timeout=8) as resp:
+            token_resp = json.loads(resp.read())
+    except Exception:
+        return JsonResponse({'error': 'Failed to exchange Discord code'}, status=400)
+
+    access_token = token_resp.get('access_token')
+    if not access_token:
+        return JsonResponse({'error': 'Discord token exchange failed'}, status=400)
+
+    # Fetch Discord user
+    try:
+        req = _req.Request(
+            'https://discord.com/api/users/@me',
+            headers={'Authorization': f'Bearer {access_token}'},
+        )
+        with _req.urlopen(req, timeout=8) as resp:
+            duser = json.loads(resp.read())
+    except Exception:
+        return JsonResponse({'error': 'Failed to get Discord user info'}, status=400)
+
+    email = duser.get('email')
+    if not email or not duser.get('verified'):
+        return JsonResponse({'error': 'Discord account has no verified email'}, status=400)
+
+    user = _get_or_create_social_user(
+        email=email,
+        name=duser.get('global_name') or duser.get('username', ''),
+        username_hint=duser.get('username', ''),
+    )
+    login(request, user)
+    return JsonResponse(_user_data(user))
 
 
 _MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5 MB

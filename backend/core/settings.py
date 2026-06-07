@@ -1,12 +1,15 @@
 from pathlib import Path
 import os
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent.parent / '.env')
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-+3!b1&-2vmticmywcisona33+mbuj@eexz0q@p!so+4y6nbljg')
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', '')
 
-DEBUG = os.getenv('DJANGO_DEBUG', 'False') == 'True'
-
+DEBUG = os.getenv('DJANGO_DEBUG', '') == 'True'
+    
 ALLOWED_HOSTS = [
     'diov2.pythonanywhere.com',
     '127.0.0.1',
@@ -112,6 +115,11 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:8080',
     'http://localhost:8080',
 ]
+
+# Social auth (set via environment variables)
+GOOGLE_CLIENT_ID      = os.getenv('GOOGLE_CLIENT_ID', '')
+DISCORD_CLIENT_ID     = os.getenv('DISCORD_CLIENT_ID', '')
+DISCORD_CLIENT_SECRET = os.getenv('DISCORD_CLIENT_SECRET', '')
 
 # Email configuration
 if DEBUG:

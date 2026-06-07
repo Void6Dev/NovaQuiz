@@ -14,6 +14,9 @@ urlpatterns = [
     path('auth/avatar/transform/', views.api_avatar_transform),
     path('auth/forgot-password/', views.api_forgot_password),
     path('auth/reset-password/',  views.api_reset_password),
+    path('auth/google/',          views.api_google_auth),
+    path('auth/discord/',         views.api_discord_auth),
+    path('public-config/',        views.api_public_config),
 
     # Workspace
     path('workspace/invite/',                           views.api_workspace_invite),
