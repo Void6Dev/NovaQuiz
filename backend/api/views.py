@@ -21,7 +21,7 @@ from channels.layers import get_channel_layer
 from django.db import transaction
 from django.db.models import Count, F, Q, Sum
 
-from auth_sys.models import Account, PasswordResetToken, WorkspaceInvitation
+from auth_sys.models import Account, PasswordResetToken, WorkspaceInvitation, Notification, QuizDeletion
 from quiz.models import Quiz, Question, Answer, PracticeRecord, UserStat, ActivityEntry, TopicStat, QuizVote, QuizComment, CommentVote
 from hosting.models import Session, SessionPlayer, PlayerAnswer, SessionTeam
 
@@ -98,6 +98,7 @@ def _quiz_data(quiz, user=None, include_stats=False):
         'description': quiz.description or '',
         'image': quiz.image.url if quiz.image else None,
         'cover_transform': quiz.image_transform or '',
+        'is_removed': quiz.is_removed,
         'creator': quiz.creator.username,
         'created_at': quiz.created_at.isoformat(),
         'question_count': qcount if qcount is not None else quiz.questions.count(),
@@ -598,7 +599,7 @@ def api_quiz_list(request):
     if request.GET.get('mine') == '1':
         if not request.user.is_authenticated:
             return JsonResponse({'error': 'Not authenticated'}, status=401)
-        qs = qs.filter(creator=request.user)
+        qs = qs.filter(creator=request.user)  # owner sees their own even if removed
     elif request.GET.get('shared') == '1':
         if not request.user.is_authenticated:
             return JsonResponse({'error': 'Not authenticated'}, status=401)
@@ -607,9 +608,9 @@ def api_quiz_list(request):
         ).values_list('from_user', flat=True)
         qs = qs.filter(creator__in=workspace_owners)
     elif creator:
-        qs = qs.filter(creator__username__icontains=creator, is_public=True)
+        qs = qs.filter(creator__username__icontains=creator, is_public=True, is_removed=False)
     else:
-        qs = qs.filter(is_public=True)
+        qs = qs.filter(is_public=True, is_removed=False)
     if topic:
         qs = qs.filter(topic=topic)
     search = request.GET.get('search', '').strip()
@@ -654,17 +655,37 @@ def api_quiz_create(request):
 
 def api_quiz_detail(request, quiz_id):
     quiz = get_object_or_404(Quiz.objects.annotate(question_count=Count('questions')), id=quiz_id)
-    if not quiz.is_public and quiz.creator != getattr(request, 'user', None):
-        if not request.user.is_authenticated:
+    user = request.user if request.user.is_authenticated else None
+    account = getattr(user, 'account', None) if user else None
+    is_mod = user and (user.is_superuser or (account and account.permission == 'moderator'))
+
+    if quiz.is_removed and not is_mod and quiz.creator != user:
+        return JsonResponse({'error': 'Quiz not found'}, status=404)
+
+    if not quiz.is_public and quiz.creator != user:
+        if not user:
             return JsonResponse({'error': 'Access denied'}, status=403)
         is_workspace_member = WorkspaceInvitation.objects.filter(
-            from_user=quiz.creator, to_email=request.user.email, status='accepted'
+            from_user=quiz.creator, to_email=user.email, status='accepted'
         ).exists()
-        if not is_workspace_member:
+        if not is_workspace_member and not is_mod:
             return JsonResponse({'error': 'Access denied'}, status=403)
-    user = request.user if request.user.is_authenticated else None
+
     data = _quiz_data(quiz, user=user, include_stats=True)
     data['questions'] = [_question_data(q) for q in quiz.questions.all()]
+
+    if quiz.is_removed and (is_mod or quiz.creator == user):
+        deletion = QuizDeletion.objects.filter(quiz_id=quiz.id).order_by('-deleted_at').first()
+        if deletion:
+            data['removal_info'] = {
+                'deletion_id': deletion.id,
+                'reason': deletion.reason,
+                'moderator': deletion.moderator.username,
+                'deleted_at': deletion.deleted_at.isoformat(),
+                'appeal_status': deletion.appeal_status,
+                'appeal_text': deletion.appeal_text,
+            }
+
     return JsonResponse(data)
 
 
@@ -1031,6 +1052,7 @@ def api_session_start(request, session_id):
     if 'max_players' in data:
         session.max_players = int(data['max_players'])
     session.has_started = True
+    session.last_activity_at = timezone.now()
     session.save()
     _ws_broadcast(session.id, {'type': 'session.started'})
     return JsonResponse({'status': 'ok'})
@@ -1079,6 +1101,8 @@ def api_session_answer(request, session_id):
         ).exclude(player=request.user).exists()
         sp.score += 2 if is_first else 1
         sp.save()
+
+    Session.objects.filter(id=session.id).update(last_activity_at=timezone.now())
 
     answered = PlayerAnswer.objects.filter(session=session, question=question).values('player').distinct().count()
     total = session.players.filter(is_kicked=False).count()
@@ -1671,3 +1695,193 @@ def api_admin_set_permission(request, user_id):
     account.permission = permission
     account.save(update_fields=['permission'])
     return JsonResponse({'ok': True, 'permission': permission})
+
+
+# ── Notifications ─────────────────────────────────────────────────────────────
+
+def _notification_data(n):
+    return {
+        'id': n.id,
+        'type': n.type,
+        'data': n.data,
+        'is_read': n.is_read,
+        'created_at': n.created_at.isoformat(),
+    }
+
+
+@csrf_exempt
+@login_required
+def api_notifications(request):
+    if request.method == 'GET':
+        notifs = Notification.objects.filter(user=request.user)[:50]
+        return JsonResponse({'notifications': [_notification_data(n) for n in notifs]})
+
+    if request.method == 'POST':
+        # mark all as read
+        Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
+        return JsonResponse({'ok': True})
+
+    return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+
+@csrf_exempt
+@login_required
+def api_notification_read(request, notif_id):
+    n = get_object_or_404(Notification, id=notif_id, user=request.user)
+    n.is_read = True
+    n.save(update_fields=['is_read'])
+    return JsonResponse({'ok': True})
+
+
+# ── Moderator quiz deletion ───────────────────────────────────────────────────
+
+@csrf_exempt
+@moderator_required
+def api_moderator_quiz_delete(request, quiz_id):
+    data = _json_body(request)
+    reason = (data.get('reason') or '').strip()
+    if not reason:
+        return JsonResponse({'error': 'Reason is required'}, status=400)
+
+    quiz = get_object_or_404(Quiz, id=quiz_id, is_removed=False)
+    if quiz.creator == request.user:
+        return JsonResponse({'error': 'Use regular delete for your own quizzes'}, status=400)
+
+    quiz.is_removed = True
+    quiz.removed_at = timezone.now()
+    quiz.save(update_fields=['is_removed', 'removed_at'])
+
+    deletion = QuizDeletion.objects.create(
+        quiz_id=quiz.id,
+        quiz_title=quiz.title,
+        owner=quiz.creator,
+        moderator=request.user,
+        reason=reason,
+    )
+
+    Notification.objects.create(
+        user=quiz.creator,
+        type=Notification.Type.QUIZ_DELETED,
+        data={
+            'deletion_id': deletion.id,
+            'quiz_id': quiz.id,
+            'quiz_title': deletion.quiz_title,
+            'reason': reason,
+            'moderator': request.user.username,
+        },
+    )
+
+    return JsonResponse({'ok': True, 'deletion_id': deletion.id})
+
+
+# ── Appeals ───────────────────────────────────────────────────────────────────
+
+APPEALS_PER_WEEK = 3
+
+@csrf_exempt
+@login_required
+def api_deletion_appeal(request, deletion_id):
+    deletion = get_object_or_404(QuizDeletion, id=deletion_id, owner=request.user)
+
+    if deletion.appeal_status != QuizDeletion.AppealStatus.NONE:
+        return JsonResponse({'error': 'Appeal already submitted'}, status=400)
+
+    data = _json_body(request)
+    appeal_text = (data.get('text') or '').strip()
+    if not appeal_text:
+        return JsonResponse({'error': 'Appeal text is required'}, status=400)
+    if len(appeal_text) > 1000:
+        return JsonResponse({'error': 'Appeal text is too long (max 1000 chars)'}, status=400)
+
+    week_ago = timezone.now() - timedelta(days=7)
+    recent_appeals = QuizDeletion.objects.filter(
+        owner=request.user,
+        appeal_submitted_at__gte=week_ago,
+    ).exclude(appeal_status=QuizDeletion.AppealStatus.NONE).count()
+
+    if recent_appeals >= APPEALS_PER_WEEK:
+        return JsonResponse({'error': f'You can submit at most {APPEALS_PER_WEEK} appeals per week'}, status=429)
+
+    deletion.appeal_text = appeal_text
+    deletion.appeal_submitted_at = timezone.now()
+    deletion.appeal_status = QuizDeletion.AppealStatus.PENDING
+    deletion.save(update_fields=['appeal_text', 'appeal_submitted_at', 'appeal_status'])
+
+    # Notify all moderators
+    mod_users = User.objects.filter(account__permission='moderator')
+    notif_data = {
+        'deletion_id': deletion.id,
+        'quiz_id': deletion.quiz_id,
+        'quiz_title': deletion.quiz_title,
+        'appeal_text': appeal_text,
+        'owner_username': request.user.username,
+        'owner_id': request.user.id,
+    }
+    Notification.objects.bulk_create([
+        Notification(user=mod, type=Notification.Type.APPEAL_RECEIVED, data=notif_data)
+        for mod in mod_users
+    ])
+
+    return JsonResponse({'ok': True})
+
+
+def _close_appeal(deletion, moderator, accepted: bool):
+    """Shared logic for accept/reject: update deletion, clean mod notifications, notify owner."""
+    deletion.appeal_status = (
+        QuizDeletion.AppealStatus.ACCEPTED if accepted else QuizDeletion.AppealStatus.REJECTED
+    )
+    deletion.rejected_by = moderator
+    deletion.rejected_at = timezone.now()
+    deletion.save(update_fields=['appeal_status', 'rejected_by', 'rejected_at'])
+
+    Notification.objects.filter(
+        type=Notification.Type.APPEAL_RECEIVED,
+        data__deletion_id=deletion.id,
+    ).delete()
+
+    notif_type = Notification.Type.APPEAL_ACCEPTED if accepted else Notification.Type.APPEAL_REJECTED
+    Notification.objects.create(
+        user=deletion.owner,
+        type=notif_type,
+        data={
+            'deletion_id': deletion.id,
+            'quiz_id': deletion.quiz_id,
+            'quiz_title': deletion.quiz_title,
+            'moderator': moderator.username,
+        },
+    )
+
+
+@csrf_exempt
+@moderator_required
+def api_appeal_accept(request, deletion_id):
+    deletion = get_object_or_404(QuizDeletion, id=deletion_id)
+
+    if deletion.appeal_status != QuizDeletion.AppealStatus.PENDING:
+        return JsonResponse({'error': 'No pending appeal for this deletion'}, status=400)
+
+    try:
+        quiz = Quiz.objects.get(id=deletion.quiz_id, is_removed=True)
+        quiz.is_removed = False
+        quiz.removed_at = None
+        quiz.save(update_fields=['is_removed', 'removed_at'])
+    except Quiz.DoesNotExist:
+        return JsonResponse({'error': 'Quiz no longer exists'}, status=404)
+
+    _close_appeal(deletion, request.user, accepted=True)
+    return JsonResponse({'ok': True})
+
+
+@csrf_exempt
+@moderator_required
+def api_appeal_reject(request, deletion_id):
+    deletion = get_object_or_404(QuizDeletion, id=deletion_id)
+
+    if deletion.appeal_status != QuizDeletion.AppealStatus.PENDING:
+        return JsonResponse({'error': 'No pending appeal for this deletion'}, status=400)
+
+    # Hard-delete the quiz now that appeal is denied
+    Quiz.objects.filter(id=deletion.quiz_id, is_removed=True).delete()
+
+    _close_appeal(deletion, request.user, accepted=False)
+    return JsonResponse({'ok': True})

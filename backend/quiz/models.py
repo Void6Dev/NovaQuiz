@@ -18,6 +18,8 @@ class Quiz(models.Model):
 
     title = models.CharField(max_length=50)
     is_public = models.BooleanField(default=True)
+    is_removed = models.BooleanField(default=False)
+    removed_at = models.DateTimeField(null=True, blank=True)
     topic = models.CharField(
         max_length=10,
         choices=Topic.choices,

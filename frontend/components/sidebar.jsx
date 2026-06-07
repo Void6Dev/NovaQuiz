@@ -3,10 +3,185 @@
 // Navigates between pages via window.navigate(screen).
 
 // ── Notification bell ─────────────────────────────────────────────────────────
+
+function NotifItemQuizDeleted({ notif, onAppealSent }) {
+  const [expanded, setExpanded] = useState(false);
+  const [appealing, setAppealing] = useState(false);
+  const [appealText, setAppealText] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+  const { deletion_id, quiz_id, quiz_title, reason } = notif.data;
+
+  const submit = async () => {
+    if (!appealText.trim()) return;
+    setLoading(true); setErr('');
+    try {
+      await API.post(`/deletions/${deletion_id}/appeal/`, { text: appealText });
+      setAppealing(false);
+      onAppealSent(notif.id);
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="notif-item notif-item--danger">
+      <div className="notif-item__icon"><Icon name="trash" size={14} /></div>
+      <div className="notif-item__body">
+        <div className="notif-item__title">Your quiz was removed</div>
+        <button
+          className="notif-item__quiz-link"
+          onClick={() => quiz_id && window.navigate('quiz', { id: quiz_id })}
+          style={{ cursor: quiz_id ? 'pointer' : 'default' }}
+        >
+          <span className="notif-item__quiz-link__title">&ldquo;{quiz_title}&rdquo;</span>
+          {quiz_id && <Icon name="arrowRight" size={11} />}
+        </button>
+        {!expanded && (
+          <button className="notif-item__link" onClick={() => setExpanded(true)}>View reason</button>
+        )}
+        {expanded && (
+          <div className="notif-item__reason">{reason}</div>
+        )}
+        {expanded && !appealing && !notif.data.__appealed && (
+          <button className="notif-item__link" onClick={() => setAppealing(true)}>Submit appeal</button>
+        )}
+        {expanded && notif.data.__appealed && (
+          <span className="notif-item__tag notif-item__tag--warn">Appeal submitted</span>
+        )}
+        {appealing && (
+          <div style={{ marginTop: 8 }}>
+            <textarea
+              className="input"
+              style={{ width: '100%', minHeight: 72, fontSize: 12, resize: 'vertical' }}
+              placeholder="Explain why this removal was a mistake…"
+              value={appealText}
+              onChange={e => setAppealText(e.target.value)}
+              maxLength={1000}
+            />
+            {err && <div style={{ fontSize: 11, color: 'var(--danger-text)', marginTop: 4 }}>{err}</div>}
+            <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+              <button className="btn btn--sm btn--accent" onClick={submit} disabled={loading || !appealText.trim()}>
+                {loading ? 'Sending…' : 'Send appeal'}
+              </button>
+              <button className="btn btn--sm btn--ghost" onClick={() => { setAppealing(false); setErr(''); }}>Cancel</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function NotifItemAppealReceived({ notif, onClose }) {
+  const [actionLoading, setActionLoading] = useState(''); // 'accept' | 'reject' | ''
+  const { deletion_id, quiz_id, quiz_title, appeal_text, owner_username } = notif.data;
+
+  const decide = async (action) => {
+    setActionLoading(action);
+    try {
+      await API.post(`/appeals/${deletion_id}/${action}/`);
+      onClose(deletion_id);
+      window.showToast && window.showToast(action === 'accept' ? 'Appeal accepted — quiz restored' : 'Appeal rejected', action === 'accept' ? 'success' : 'info');
+    } catch (e) {
+      window.showToast && window.showToast(e.message, 'error');
+      setActionLoading('');
+    }
+  };
+
+  return (
+    <div className="notif-item notif-item--warn">
+      <div className="notif-item__icon"><Icon name="flag" size={14} /></div>
+      <div className="notif-item__body">
+        <div className="notif-item__title">Appeal from <strong>@{owner_username}</strong></div>
+        <button
+          className="notif-item__quiz-link"
+          onClick={() => quiz_id && window.navigate('quiz', { id: quiz_id })}
+          style={{ cursor: quiz_id ? 'pointer' : 'default' }}
+        >
+          <span className="notif-item__quiz-link__title">&ldquo;{quiz_title}&rdquo;</span>
+          {quiz_id && <Icon name="arrowRight" size={11} />}
+        </button>
+        <div className="notif-item__reason">{appeal_text}</div>
+        <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+          <button className="btn btn--sm btn--accent" onClick={() => decide('accept')} disabled={!!actionLoading}>
+            {actionLoading === 'accept' ? 'Accepting…' : <><Icon name="check" size={12} /> Accept</>}
+          </button>
+          <button className="btn btn--sm" style={{ background: 'var(--danger)', color: 'var(--danger-fg)' }} onClick={() => decide('reject')} disabled={!!actionLoading}>
+            {actionLoading === 'reject' ? 'Rejecting…' : <><Icon name="x" size={12} /> Reject</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NotifItemAppealAccepted({ notif }) {
+  const { quiz_title, quiz_id } = notif.data;
+  return (
+    <div className="notif-item notif-item--success">
+      <div className="notif-item__icon"><Icon name="check" size={14} /></div>
+      <div className="notif-item__body">
+        <div className="notif-item__title">Appeal accepted — quiz restored</div>
+        <button
+          className="notif-item__quiz-link"
+          onClick={() => quiz_id && window.navigate('quiz', { id: quiz_id })}
+          style={{ cursor: quiz_id ? 'pointer' : 'default' }}
+        >
+          <span className="notif-item__quiz-link__title">&ldquo;{quiz_title}&rdquo;</span>
+          {quiz_id && <Icon name="arrowRight" size={11} />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function NotifItemAppealRejected({ notif }) {
+  const { quiz_title } = notif.data;
+  return (
+    <div className="notif-item">
+      <div className="notif-item__icon"><Icon name="x" size={14} /></div>
+      <div className="notif-item__body">
+        <div className="notif-item__title">Appeal rejected</div>
+        <div className="notif-item__sub">&ldquo;{quiz_title}&rdquo;</div>
+      </div>
+    </div>
+  );
+}
+
 function NotificationBell({ compact = false }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen]       = useState(false);
+  const [notifs, setNotifs]   = useState([]);
+  const [loaded, setLoaded]   = useState(false);
   const ref = useRef(null);
-  const unread = 0; // placeholder
+
+  const unread = notifs.filter(n => !n.is_read).length;
+
+  const load = async () => {
+    try {
+      const res = await API.get('/notifications/');
+      setNotifs(res.notifications);
+    } catch (_) {}
+    setLoaded(true);
+  };
+
+  useEffect(() => {
+    load();
+    const id = setInterval(load, 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const toggleOpen = async () => {
+    const next = !open;
+    setOpen(next);
+    if (next && unread > 0) {
+      // mark all read optimistically, then call API
+      setNotifs(ns => ns.map(n => ({ ...n, is_read: true })));
+      API.post('/notifications/').catch(() => {});
+    }
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -15,12 +190,32 @@ function NotificationBell({ compact = false }) {
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
+  const handleAppealSent = (notifId) => {
+    setNotifs(ns => ns.map(n =>
+      n.id === notifId ? { ...n, data: { ...n.data, __appealed: true } } : n
+    ));
+  };
+
+  const handleAppealClosed = (deletionId) => {
+    setNotifs(ns => ns.filter(n =>
+      !(n.type === 'appeal_received' && n.data.deletion_id === deletionId)
+    ));
+  };
+
+  const renderItem = (n) => {
+    if (n.type === 'quiz_deleted')    return <NotifItemQuizDeleted    key={n.id} notif={n} onAppealSent={handleAppealSent} />;
+    if (n.type === 'appeal_received') return <NotifItemAppealReceived key={n.id} notif={n} onClose={handleAppealClosed} />;
+    if (n.type === 'appeal_accepted') return <NotifItemAppealAccepted key={n.id} notif={n} />;
+    if (n.type === 'appeal_rejected') return <NotifItemAppealRejected key={n.id} notif={n} />;
+    return null;
+  };
+
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <button
         className="btn btn--ghost btn--icon"
         style={{ position: 'relative', color: open ? 'var(--text)' : 'var(--text-muted)', ...(compact ? {} : { width: '100%', justifyContent: 'flex-start', gap: 9, padding: '7px 10px', borderRadius: 'var(--r-sm)', fontSize: 13, fontWeight: 400 }) }}
-        onClick={() => setOpen(o => !o)}
+        onClick={toggleOpen}
         title="Notifications"
       >
         <span style={{ position: 'relative', display: 'inline-flex' }}>
@@ -33,7 +228,7 @@ function NotificationBell({ compact = false }) {
               fontSize: 9, fontWeight: 700, lineHeight: '14px',
               textAlign: 'center', padding: '0 3px',
               border: '1.5px solid var(--bg)',
-            }}>{unread}</span>
+            }}>{unread > 99 ? '99+' : unread}</span>
           )}
         </span>
         {!compact && <span>Notifications</span>}
@@ -49,8 +244,8 @@ function NotificationBell({ compact = false }) {
           border: '1px solid var(--border)',
           borderRadius: 'var(--r-md)',
           boxShadow: 'var(--shadow-lg)',
-          width: compact ? 280 : undefined,
-          minWidth: 240,
+          width: compact ? 320 : undefined,
+          minWidth: 260,
           zIndex: 200,
           overflow: 'hidden',
         }}>
@@ -58,13 +253,64 @@ function NotificationBell({ compact = false }) {
             <span style={{ fontSize: 13, fontWeight: 600 }}>Notifications</span>
             {unread > 0 && <span style={{ fontSize: 11, color: 'var(--accent-strong)', fontWeight: 600 }}>{unread} new</span>}
           </div>
-          <div style={{ padding: '32px 16px', textAlign: 'center' }}>
-            <Icon name="bell" size={28} style={{ color: 'var(--text-faint)', marginBottom: 10 }} />
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>No notifications yet</div>
-            <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 4 }}>We'll let you know when something happens</div>
+          <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+            {!loaded && (
+              <div style={{ padding: '32px 16px', textAlign: 'center', fontSize: 13, color: 'var(--text-faint)' }}>Loading…</div>
+            )}
+            {loaded && notifs.length === 0 && (
+              <div style={{ padding: '32px 16px', textAlign: 'center' }}>
+                <Icon name="bell" size={28} style={{ color: 'var(--text-faint)', marginBottom: 10 }} />
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>No notifications yet</div>
+                <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 4 }}>We'll let you know when something happens</div>
+              </div>
+            )}
+            {loaded && notifs.map(renderItem)}
           </div>
         </div>
       )}
+
+      <style>{`
+        .notif-item {
+          display: flex; gap: 10px;
+          padding: 10px 14px;
+          border-bottom: 1px solid var(--border);
+          background: var(--surface);
+        }
+        .notif-item:last-child { border-bottom: none; }
+        .notif-item--danger  { background: var(--danger-soft); }
+        .notif-item--warn    { background: var(--warn-soft); }
+        .notif-item--success { background: var(--success-soft); }
+        .notif-item__icon {
+          flex-shrink: 0; margin-top: 2px;
+          width: 24px; height: 24px; border-radius: var(--r-sm);
+          display: grid; place-items: center;
+          background: var(--surface-2); color: var(--text-muted);
+        }
+        .notif-item--danger  .notif-item__icon { background: var(--danger-soft-border);  color: var(--danger-text); }
+        .notif-item--warn    .notif-item__icon { background: var(--warn-soft-border);    color: var(--warn-text); }
+        .notif-item--success .notif-item__icon { background: var(--success-soft-border); color: var(--success-text); }
+        .notif-item__body   { flex: 1; min-width: 0; }
+        .notif-item__title  { font-size: 12px; font-weight: 600; color: var(--text); line-height: 1.3; }
+        .notif-item__sub    { font-size: 11px; color: var(--text-muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .notif-item__reason {
+          font-size: 11px; color: var(--text); background: var(--surface-2);
+          border: 1px solid var(--border); border-radius: var(--r-sm);
+          padding: 6px 8px; margin-top: 6px; line-height: 1.4;
+        }
+        .notif-item__link   { background: none; border: none; padding: 0; cursor: pointer; font-size: 11px; color: var(--accent-strong); font-weight: 600; margin-top: 4px; display: block; }
+        .notif-item__link:hover { text-decoration: underline; }
+        .notif-item__quiz-link {
+          display: inline-flex; align-items: center; gap: 4px;
+          background: none; border: none; padding: 3px 0; margin: 2px 0;
+          font-size: 12px; font-weight: 500; color: var(--text);
+          max-width: 100%; text-align: left;
+        }
+        .notif-item__quiz-link[style*="pointer"]:hover .notif-item__quiz-link__title { text-decoration: underline; }
+        .notif-item__quiz-link[style*="pointer"]:hover { color: var(--accent-strong); }
+        .notif-item__quiz-link__title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .notif-item__tag    { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 99px; margin-top: 4px; }
+        .notif-item__tag--warn { background: var(--warn-soft); color: var(--warn-text); border: 1px solid var(--warn-soft-border); }
+      `}</style>
     </div>
   );
 }

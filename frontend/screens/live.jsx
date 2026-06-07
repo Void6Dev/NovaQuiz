@@ -35,6 +35,42 @@ function avatarText(username) {
   return (username || '?').slice(0, 2).toUpperCase();
 }
 
+function SessionExpiryBanner({ secondsLeft, onDismiss }) {
+  const mins = Math.floor(secondsLeft / 60);
+  const secs = secondsLeft % 60;
+  const timeStr = mins > 0
+    ? `${mins}m ${secs.toString().padStart(2, '0')}s`
+    : `${secs}s`;
+  const urgent = secondsLeft <= 60;
+
+  return (
+    <div style={{
+      position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)',
+      zIndex: 1000,
+      background: urgent ? 'var(--danger)' : 'var(--warn-soft)',
+      color: urgent ? 'var(--danger-fg)' : 'var(--warn-text)',
+      border: urgent ? 'none' : '1px solid var(--warn-soft-border)',
+      borderRadius: 'var(--r-md)',
+      padding: '10px 16px',
+      display: 'flex', alignItems: 'center', gap: 12,
+      boxShadow: 'var(--shadow-lg)',
+      fontSize: 13, fontWeight: 500,
+      animation: 'slideDown 200ms var(--ease)',
+    }}>
+      <Icon name="clock" size={16} />
+      <span>
+        Session closes in <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{timeStr}</span> due to inactivity
+      </span>
+      <button
+        onClick={onDismiss}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.7, padding: 2, marginLeft: 4, color: 'inherit' }}
+      >
+        <Icon name="x" size={13} />
+      </button>
+    </div>
+  );
+}
+
 function LiveHost({ onNav }) {
   window.useLang();
   const [phase, setPhase] = useState('loading'); // loading | error | lobby | question | waiting | results | podium
@@ -61,8 +97,11 @@ function LiveHost({ onNav }) {
     } catch { return { timePerQuestion: 30, maxPlayers: 20 }; }
   });
   const [teams, setTeams] = useState([]);
+  const [expiryWarning, setExpiryWarning] = useState(null); // seconds_left or null
   const wsRef = React.useRef(null);
   const finishRef = React.useRef(null);
+  const expiryTimerRef = React.useRef(null);
+  const expiryActiveRef = React.useRef(false); // tracks if expiry warning is in flight
 
   // Create session + load quiz on mount
   useEffect(() => {
@@ -114,6 +153,24 @@ function LiveHost({ onNav }) {
           if (msg.total > 0 && msg.answered >= msg.total && finishRef.current) {
             finishRef.current();
           }
+        }
+        if (msg.type === 'session.expiring') {
+          expiryActiveRef.current = true;
+          setExpiryWarning(msg.seconds_left);
+          // count down locally
+          clearInterval(expiryTimerRef.current);
+          expiryTimerRef.current = setInterval(() => {
+            setExpiryWarning(s => {
+              if (s <= 1) { clearInterval(expiryTimerRef.current); return 0; }
+              return s - 1;
+            });
+          }, 1000);
+        }
+        if (msg.type === 'session.ended' && expiryActiveRef.current) {
+          // ended due to inactivity (not by host manually)
+          clearInterval(expiryTimerRef.current);
+          expiryActiveRef.current = false;
+          setPhase('expired');
         }
       } catch {}
     };
@@ -244,9 +301,27 @@ function LiveHost({ onNav }) {
     );
   }
 
+  if (phase === 'expired') {
+    return (
+      <div style={{ height: '100vh', display: 'grid', placeItems: 'center' }}>
+        <div style={{ textAlign: 'center', maxWidth: 360 }}>
+          <div style={{ width: 56, height: 56, borderRadius: 16, background: 'var(--warn-soft)', color: 'var(--warn-text)', display: 'grid', placeItems: 'center', margin: '0 auto 20px' }}>
+            <Icon name="clock" size={26} />
+          </div>
+          <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', marginBottom: 8 }}>Session expired</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: 14, lineHeight: 1.5, marginBottom: 24 }}>
+            The session was automatically closed after 1 hour of inactivity.
+          </div>
+          <button className="btn btn--primary" onClick={() => onNav('dashboard')}>{t('live.back_dash')}</button>
+        </div>
+      </div>
+    );
+  }
+
   const currentQ = questions[qIdx];
 
-  if (phase === 'lobby') return (
+  let phaseContent = null;
+  if (phase === 'lobby')    phaseContent = (
     <LiveLobby
       pin={pin}
       quizTitle={quizTitle}
@@ -260,7 +335,7 @@ function LiveHost({ onNav }) {
       onTeamsChange={saveTeams}
     />
   );
-  if (phase === 'question') return (
+  if (phase === 'question') phaseContent = (
     <LiveQuestion
       question={currentQ}
       idx={qIdx}
@@ -273,7 +348,7 @@ function LiveHost({ onNav }) {
       onSkip={() => setPhase('waiting')}
     />
   );
-  if (phase === 'waiting') return (
+  if (phase === 'waiting')  phaseContent = (
     <LiveWaitForOthers
       answered={answeredCount}
       totalP={participants.length}
@@ -282,7 +357,7 @@ function LiveHost({ onNav }) {
       onExit={() => onNav('dashboard')}
     />
   );
-  if (phase === 'results') return (
+  if (phase === 'results')  phaseContent = (
     <LiveResults
       question={currentQ}
       answerDist={answerDist}
@@ -293,14 +368,29 @@ function LiveHost({ onNav }) {
       onExit={() => onNav('dashboard')}
     />
   );
-  if (phase === 'podium') return (
+  if (phase === 'podium')   phaseContent = (
     <LivePodium
       participants={participants}
       onExit={() => onNav('dashboard')}
       onAnalytics={() => onNav('analytics')}
     />
   );
-  return null;
+
+  return (
+    <>
+      {expiryWarning != null && (
+        <SessionExpiryBanner
+          secondsLeft={expiryWarning}
+          onDismiss={() => {
+            clearInterval(expiryTimerRef.current);
+            expiryActiveRef.current = false;
+            setExpiryWarning(null);
+          }}
+        />
+      )}
+      {phaseContent}
+    </>
+  );
 }
 
 function LiveLobby({ pin, quizTitle, participants, onStart, onExit, onKick, hostSettings, onHostSettingsChange, teams, onTeamsChange }) {

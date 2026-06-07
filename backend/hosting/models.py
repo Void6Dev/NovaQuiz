@@ -16,7 +16,8 @@ class Session(models.Model):
     has_started = models.BooleanField(default=False)
     has_ended = models.BooleanField(default=False)
     code = models.CharField(max_length=10, unique=True, default=generate_session_code)
-    teams_enabled = models.BooleanField(default=False)
+    teams_enabled      = models.BooleanField(default=False)
+    last_activity_at   = models.DateTimeField(auto_now_add=True)
 
     @property
     def is_active(self):

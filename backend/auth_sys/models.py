@@ -47,6 +47,57 @@ class WorkspaceInvitation(models.Model):
         return f"{self.from_user.username} → {self.to_email} ({self.status})"
 
 
+class Notification(models.Model):
+    class Type(models.TextChoices):
+        QUIZ_DELETED     = 'quiz_deleted',     'Quiz deleted by moderator'
+        APPEAL_RECEIVED  = 'appeal_received',  'Appeal received'
+        APPEAL_ACCEPTED  = 'appeal_accepted',  'Appeal accepted'
+        APPEAL_REJECTED  = 'appeal_rejected',  'Appeal rejected'
+
+    user       = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    type       = models.CharField(max_length=20, choices=Type.choices)
+    data       = models.JSONField(default=dict)
+    is_read    = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username} — {self.type}"
+
+
+class QuizDeletion(models.Model):
+    class AppealStatus(models.TextChoices):
+        NONE     = 'none',     'No appeal'
+        PENDING  = 'pending',  'Pending'
+        ACCEPTED = 'accepted', 'Accepted'
+        REJECTED = 'rejected', 'Rejected'
+
+    quiz_id    = models.IntegerField()
+    quiz_title = models.CharField(max_length=255)
+    owner      = models.ForeignKey(User, on_delete=models.CASCADE, related_name='quiz_deletions')
+    moderator  = models.ForeignKey(User, on_delete=models.CASCADE, related_name='moderated_deletions')
+    reason     = models.TextField()
+    deleted_at = models.DateTimeField(auto_now_add=True)
+
+    appeal_text         = models.TextField(blank=True, default='')
+    appeal_submitted_at = models.DateTimeField(null=True, blank=True)
+    appeal_status       = models.CharField(
+        max_length=10, choices=AppealStatus.choices, default=AppealStatus.NONE
+    )
+    rejected_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name='rejected_appeals'
+    )
+    rejected_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-deleted_at']
+
+    def __str__(self):
+        return f"Deletion of '{self.quiz_title}' by {self.moderator.username}"
+
+
 class PasswordResetToken(models.Model):
     user       = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reset_tokens')
     token      = models.CharField(max_length=64, unique=True, db_index=True)

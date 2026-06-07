@@ -371,7 +371,151 @@ function StatTile({ icon, value, label, color }) {
   );
 }
 
+// ── Owner removal banner ──────────────────────────────────────────────────────
+function OwnerRemovedBanner({ removal }) {
+  const [appealing, setAppealing] = useState(false);
+  const [appealText, setAppealText]   = useState('');
+  const [loading, setLoading]         = useState(false);
+  const [err, setErr]                 = useState('');
+  const [appealStatus, setAppealStatus] = useState(removal.appeal_status || 'none');
+
+  const submit = async () => {
+    if (!appealText.trim()) return;
+    setLoading(true); setErr('');
+    try {
+      await window.API.post(`/deletions/${removal.deletion_id}/appeal/`, { text: appealText });
+      setAppealStatus('pending');
+      setAppealing(false);
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const statusMsg =
+    appealStatus === 'pending'  ? 'Appeal submitted — awaiting moderator review.' :
+    appealStatus === 'accepted' ? 'Your appeal was accepted.' :
+    appealStatus === 'rejected' ? 'Your appeal was rejected.' : null;
+
+  return (
+    <div style={{
+      background: 'var(--warn-soft)', border: '1px solid var(--warn-soft-border)',
+      borderRadius: 'var(--r-md)', padding: '14px 18px', marginBottom: 20,
+      display: 'flex', gap: 14, alignItems: 'flex-start',
+    }}>
+      <div style={{ flexShrink: 0, marginTop: 2, color: 'var(--warn-text)' }}>
+        <Icon name="flag" size={18} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--warn-text)', marginBottom: 4 }}>
+          This quiz has been removed by a moderator
+        </div>
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>
+          <span style={{ fontWeight: 500 }}>Reason: </span>{removal.reason}
+          <span style={{ color: 'var(--text-faint)', marginLeft: 8, fontSize: 12 }}>
+            by @{removal.moderator} · {new Date(removal.deleted_at).toLocaleDateString()}
+          </span>
+        </div>
+
+        {statusMsg ? (
+          <div style={{ fontSize: 12, color: 'var(--text-faint)' }}>{statusMsg}</div>
+        ) : !appealing ? (
+          <button className="btn btn--sm btn--secondary" onClick={() => setAppealing(true)}>
+            Submit appeal
+          </button>
+        ) : (
+          <div>
+            <textarea
+              className="input"
+              style={{ width: '100%', minHeight: 80, fontSize: 13, resize: 'vertical', marginBottom: 8 }}
+              placeholder="Explain why this removal was a mistake…"
+              value={appealText}
+              onChange={e => setAppealText(e.target.value)}
+              maxLength={1000}
+            />
+            {err && <div style={{ fontSize: 12, color: 'var(--danger-text)', marginBottom: 6 }}>{err}</div>}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn--sm btn--accent" onClick={submit} disabled={loading || !appealText.trim()}>
+                {loading ? 'Sending…' : 'Send appeal'}
+              </button>
+              <button className="btn btn--sm btn--ghost" onClick={() => { setAppealing(false); setErr(''); }}>Cancel</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
+function ModRemovedBanner({ removal, onNav, onRestored }) {
+  const [actionLoading, setActionLoading] = useState('');
+
+  const decide = async (action) => {
+    setActionLoading(action);
+    try {
+      await window.API.post(`/appeals/${removal.deletion_id}/${action}/`);
+      if (action === 'accept') {
+        onRestored();
+        window.showToast('Appeal accepted — quiz restored', 'success');
+      } else {
+        window.showToast('Appeal rejected', 'info');
+        onNav('dashboard');
+      }
+    } catch (e) {
+      window.showToast(e.message, 'error');
+      setActionLoading('');
+    }
+  };
+
+  const hasPendingAppeal = removal.appeal_status === 'pending';
+
+  return (
+    <div style={{
+      background: 'var(--warn-soft)', border: '1px solid var(--warn-soft-border)',
+      borderRadius: 'var(--r-md)', padding: '14px 18px', marginBottom: 20,
+      display: 'flex', gap: 14, alignItems: 'flex-start',
+    }}>
+      <div style={{ flexShrink: 0, marginTop: 2, color: 'var(--warn-text)' }}>
+        <Icon name="flag" size={18} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--warn-text)', marginBottom: 4 }}>
+          This quiz has been removed
+        </div>
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>
+          <span style={{ fontWeight: 500 }}>Reason: </span>{removal.reason}
+          <span style={{ color: 'var(--text-faint)', marginLeft: 8, fontSize: 12 }}>
+            by @{removal.moderator} · {new Date(removal.deleted_at).toLocaleDateString()}
+          </span>
+        </div>
+        {hasPendingAppeal && (
+          <div style={{ fontSize: 13, color: 'var(--text)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', padding: '8px 12px', marginBottom: 10 }}>
+            <span style={{ fontWeight: 600, color: 'var(--warn-text)' }}>Appeal: </span>{removal.appeal_text}
+          </div>
+        )}
+        {hasPendingAppeal && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn--sm btn--accent" onClick={() => decide('accept')} disabled={!!actionLoading}>
+              {actionLoading === 'accept' ? 'Restoring…' : <><Icon name="check" size={12} /> Accept appeal</>}
+            </button>
+            <button className="btn btn--sm" style={{ background: 'var(--danger)', color: 'var(--danger-fg)' }} onClick={() => decide('reject')} disabled={!!actionLoading}>
+              {actionLoading === 'reject' ? 'Rejecting…' : <><Icon name="x" size={12} /> Reject appeal</>}
+            </button>
+          </div>
+        )}
+        {!hasPendingAppeal && (
+          <div style={{ fontSize: 12, color: 'var(--text-faint)' }}>
+            {removal.appeal_status === 'none' ? 'No appeal submitted yet.' : `Appeal ${removal.appeal_status}.`}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 function QuizDetailPage({ onNav }) {
   window.useLang();
   const [quiz, setQuiz]       = useState(null);
@@ -404,11 +548,21 @@ function QuizDetailPage({ onNav }) {
 
   const u = window.CURRENT_USER;
   const isOwn     = u && u.username === quiz.creator;
+  const isMod     = u && (u.permission === 'moderator' || u.is_superuser);
   const topicInfo = window.TOPIC_BY_CODE[quiz.topic] || { hue: 200, label: quiz.topic_display || quiz.topic };
   const questions = quiz.questions || [];
+  const removal   = quiz.removal_info || null;
 
   return (
     <div className="page fade-in">
+      {/* ── Removal banners ──────────────────────────────── */}
+      {quiz.is_removed && isMod && removal && (
+        <ModRemovedBanner removal={removal} onNav={onNav} onRestored={() => setQuiz(q => ({ ...q, is_removed: false, removal_info: null }))} />
+      )}
+      {quiz.is_removed && isOwn && !isMod && removal && (
+        <OwnerRemovedBanner removal={removal} />
+      )}
+
       {/* ── Quiz header card ──────────────────────────── */}
       <div className="card slide-up" style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
         {quiz.image ? (
@@ -452,7 +606,7 @@ function QuizDetailPage({ onNav }) {
             <button className="btn btn--primary" onClick={() => onNav('player', { quizId: quiz.id })}>
               <Icon name="play" size={14} /> {t('quiz.play')}
             </button>
-            {isOwn && (
+            {isOwn ? (
               <>
                 <button className="btn btn--secondary" onClick={() => onNav('editor', { quizId: quiz.id })}>
                   <Icon name="edit" size={14} /> Edit
@@ -461,6 +615,10 @@ function QuizDetailPage({ onNav }) {
                   <Icon name="radio" size={14} /> {t('quiz.run_live')}
                 </button>
               </>
+            ) : (
+              <button className="btn btn--ghost" onClick={() => onNav('live', { quizId: quiz.id })}>
+                <Icon name="bolt" size={14} /> {t('quiz.run_live')}
+              </button>
             )}
           </div>
         </div>

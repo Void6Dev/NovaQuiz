@@ -54,8 +54,18 @@ urlpatterns = [
     path('users/<str:username>/', views.api_user_profile),
 
     # Moderator admin
-    path('admin/users/',                        views.api_admin_users),
-    path('admin/users/<int:user_id>/permission/', views.api_admin_set_permission),
+    path('admin/users/',                             views.api_admin_users),
+    path('admin/users/<int:user_id>/permission/',    views.api_admin_set_permission),
+    path('admin/quizzes/<int:quiz_id>/delete/',      views.api_moderator_quiz_delete),
+
+    # Notifications
+    path('notifications/',                views.api_notifications),
+    path('notifications/<int:notif_id>/read/', views.api_notification_read),
+
+    # Appeals
+    path('deletions/<int:deletion_id>/appeal/', views.api_deletion_appeal),
+    path('appeals/<int:deletion_id>/accept/',   views.api_appeal_accept),
+    path('appeals/<int:deletion_id>/reject/',   views.api_appeal_reject),
 
     # Sessions
     path('sessions/',                                    views.api_session_list),

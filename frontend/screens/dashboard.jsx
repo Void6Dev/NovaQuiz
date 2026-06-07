@@ -24,7 +24,11 @@ function Dashboard({ onNav }) {
   const [filter, setFilter]          = useState('all');
   const [topicFilter, setTopicFilter] = useState('all');
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [modDeleteTarget, setModDeleteTarget] = useState(null); // { id, title }
+  const [modDeleteReason, setModDeleteReason] = useState('');
+  const [modDeleteLoading, setModDeleteLoading] = useState(false);
   const u = window.CURRENT_USER;
+  const isMod = u.permission === 'moderator' || u.is_superuser;
   const exploreTimerRef = useRef(null);
 
   // Mine + shared load once on mount
@@ -66,6 +70,22 @@ function Dashboard({ onNav }) {
         setMine(qs => qs.filter(q => q.id !== id));
       })
       .catch(err => showToast(err.message, 'error'));
+  };
+
+  const modDeleteQuiz = async () => {
+    if (!modDeleteReason.trim()) return;
+    setModDeleteLoading(true);
+    try {
+      await window.API.post(`/admin/quizzes/${modDeleteTarget.id}/delete/`, { reason: modDeleteReason });
+      setExplore(qs => qs.filter(q => q.id !== modDeleteTarget.id));
+      setModDeleteTarget(null);
+      setModDeleteReason('');
+      showToast('Quiz removed', 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setModDeleteLoading(false);
+    }
   };
 
   const duplicateQuiz = (q) => {
@@ -213,8 +233,9 @@ function Dashboard({ onNav }) {
                 onOpen={isOwn ? () => onNav('editor', { quizId: q.id }) : null}
                 onDetail={!isOwn ? () => onNav('quiz', { id: q.id }) : null}
                 onPlay={() => onNav('player', { quizId: q.id })}
-                onRunLive={isOwn ? () => onNav('live', { quizId: q.id }) : null}
+                onRunLive={() => onNav('live', { quizId: q.id })}
                 onDelete={isOwn ? () => setConfirmDelete(q) : null}
+                onModDelete={isMod && !isOwn ? () => { setModDeleteTarget(q); setModDeleteReason(''); } : null}
                 onDuplicate={() => duplicateQuiz(q)}
                 onSetCover={isOwn ? (dataURL) => setCover(q.id, dataURL) : null}
                 onClearCover={isOwn ? () => clearCover(q.id) : null}
@@ -229,11 +250,13 @@ function Dashboard({ onNav }) {
         <QuizListView
           quizzes={filtered}
           myUsername={u.username}
+          isMod={isMod}
           onOpen={(id) => onNav('editor', { quizId: id })}
           onDetail={(id) => onNav('quiz', { id })}
           onPlay={(id) => onNav('player', { quizId: id })}
           onRunLive={(id) => onNav('live', { quizId: id })}
           onDelete={(q) => setConfirmDelete(q)}
+          onModDelete={(q) => { setModDeleteTarget(q); setModDeleteReason(''); }}
           onDuplicate={(q) => duplicateQuiz(q)}
           onTogglePublic={(q) => togglePublic(q)}
         />
@@ -261,6 +284,46 @@ function Dashboard({ onNav }) {
           />
         );
       })()}
+
+      {modDeleteTarget && (
+        <Modal width={440} onClose={() => { setModDeleteTarget(null); setModDeleteReason(''); }}>
+          <div style={{ padding: 28 }}>
+            <div style={{
+              width: 44, height: 44, borderRadius: 12,
+              background: 'var(--warn-soft)', color: 'var(--warn-text)',
+              display: 'grid', placeItems: 'center', marginBottom: 18,
+            }}>
+              <Icon name="flag" size={20} />
+            </div>
+            <h3 style={{ fontSize: 19, fontWeight: 600, letterSpacing: '-0.02em', marginBottom: 6 }}>
+              Remove quiz
+            </h3>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 16 }}>
+              You are about to remove <span style={{ color: 'var(--text)', fontWeight: 500 }}>"{modDeleteTarget.title}"</span>. The owner will be notified and can submit an appeal.
+            </p>
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Reason (required)</label>
+            <textarea
+              className="input"
+              style={{ width: '100%', minHeight: 88, resize: 'vertical', fontSize: 13 }}
+              placeholder="Explain why this quiz violates the rules…"
+              value={modDeleteReason}
+              onChange={e => setModDeleteReason(e.target.value)}
+              maxLength={500}
+            />
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+              <button className="btn btn--secondary" onClick={() => { setModDeleteTarget(null); setModDeleteReason(''); }}>Cancel</button>
+              <button
+                className="btn"
+                style={{ background: 'var(--danger)', color: 'var(--danger-fg)' }}
+                disabled={!modDeleteReason.trim() || modDeleteLoading}
+                onClick={modDeleteQuiz}
+              >
+                <Icon name="trash" size={14} /> {modDeleteLoading ? 'Removing…' : 'Remove quiz'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {confirmDelete && (
         <Modal width={420} onClose={() => setConfirmDelete(null)}>
@@ -316,7 +379,7 @@ function QuizCardSkeleton() {
 }
 
 // === QuizCard ===
-function QuizCard({ quiz, isOwn, onOpen, onDetail, onPlay, onRunLive, onDelete, onDuplicate, onSetCover, onClearCover, onCropCover, onTogglePublic, delay }) {
+function QuizCard({ quiz, isOwn, onOpen, onDetail, onPlay, onRunLive, onDelete, onModDelete, onDuplicate, onSetCover, onClearCover, onCropCover, onTogglePublic, delay }) {
   const topic = window.TOPIC_BY_CODE[quiz.topic] || { label: quiz.topic, hue: 200 };
   const fileInput = useRef(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -409,6 +472,11 @@ function QuizCard({ quiz, isOwn, onOpen, onDetail, onPlay, onRunLive, onDelete, 
                 }
               </span>
             )}
+            {quiz.is_removed && (
+              <span className="pill holo-card__status" style={{ background: 'oklch(100% 0 0 / 0.92)', color: 'oklch(50% 0.20 30)' }}>
+                <Icon name="flag" size={9} /> Removed
+              </span>
+            )}
           </div>
 
           {isOwn && (
@@ -458,11 +526,23 @@ function QuizCard({ quiz, isOwn, onOpen, onDetail, onPlay, onRunLive, onDelete, 
 
           {!isOwn && (
             <div className="holo-card__actions" onClick={e => e.stopPropagation()}>
+              <Tooltip label={t('dash.run_live')}>
+                <button className="holo-card__action" onClick={(e) => { e.stopPropagation(); onRunLive(); }}>
+                  <Icon name="bolt" size={14} />
+                </button>
+              </Tooltip>
               <Tooltip label={t('dash.dup_mine')}>
                 <button className="holo-card__action" onClick={(e) => { e.stopPropagation(); onDuplicate(); }}>
                   <Icon name="copy" size={14} />
                 </button>
               </Tooltip>
+              {onModDelete && (
+                <Tooltip label="Remove (mod)">
+                  <button className="holo-card__action holo-card__action--lock" onClick={(e) => { e.stopPropagation(); onModDelete(); }}>
+                    <Icon name="flag" size={14} />
+                  </button>
+                </Tooltip>
+              )}
             </div>
           )}
 
@@ -735,7 +815,7 @@ function HoloCardStyles() {
 }
 
 // === List view ===
-function QuizListView({ quizzes, myUsername, onOpen, onDetail, onPlay, onRunLive, onDelete, onDuplicate, onTogglePublic }) {
+function QuizListView({ quizzes, myUsername, isMod, onOpen, onDetail, onPlay, onRunLive, onDelete, onModDelete, onDuplicate, onTogglePublic }) {
   return (
     <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
       <div className="quiz-list-header">
@@ -773,7 +853,11 @@ function QuizListView({ quizzes, myUsername, onOpen, onDetail, onPlay, onRunLive
               @{q.creator?.username || '—'}
             </div>
             <div className="qlc-meta">
-              {isOwn ? (
+              {q.is_removed ? (
+                <span className="pill" style={{ color: 'oklch(50% 0.20 30)', background: 'var(--warn-soft)', borderColor: 'var(--warn-soft-border)' }}>
+                  <Icon name="flag" size={10} /> Removed
+                </span>
+              ) : isOwn ? (
                 q.is_public ? (
                   <span className="pill pill--dot" style={{ color: 'oklch(50% 0.15 145)' }}>
                     {t('dash.vis_public')}
@@ -797,6 +881,7 @@ function QuizListView({ quizzes, myUsername, onOpen, onDetail, onPlay, onRunLive
             <div className="qlc-meta" style={{ fontSize: 13, color: 'var(--text-muted)' }}>{q.lastEdited}</div>
             <div className="quiz-row__actions" onClick={e => e.stopPropagation()}>
               <Tooltip label={t('dash.practice')}><button className="btn btn--ghost btn--icon" onClick={() => onPlay(q.id)}><Icon name="play" size={14} /></button></Tooltip>
+              {!isOwn && <Tooltip label={t('dash.run_live')}><button className="btn btn--ghost btn--icon" onClick={() => onRunLive(q.id)}><Icon name="bolt" size={14} /></button></Tooltip>}
               {isOwn && <>
                 <Tooltip label={t('dash.run_live')}><button className="btn btn--ghost btn--icon" onClick={() => onRunLive(q.id)}><Icon name="bolt" size={14} /></button></Tooltip>
                 <Tooltip label={t('dash.edit')}><button className="btn btn--ghost btn--icon" onClick={() => onOpen(q.id)}><Icon name="edit" size={14} /></button></Tooltip>
@@ -811,6 +896,9 @@ function QuizListView({ quizzes, myUsername, onOpen, onDetail, onPlay, onRunLive
                 </Tooltip>
                 <Tooltip label={t('dash.delete')}><button className="btn btn--ghost btn--icon" style={{ color: 'var(--danger-text)' }} onClick={() => onDelete(q)}><Icon name="trash" size={14} /></button></Tooltip>
               </>}
+              {!isOwn && isMod && (
+                <Tooltip label="Remove (mod)"><button className="btn btn--ghost btn--icon" style={{ color: 'var(--warn-text)' }} onClick={() => onModDelete(q)}><Icon name="flag" size={14} /></button></Tooltip>
+              )}
               <Tooltip label={t('dash.duplicate')}><button className="btn btn--ghost btn--icon" onClick={() => onDuplicate(q)}><Icon name="copy" size={14} /></button></Tooltip>
             </div>
           </div>
