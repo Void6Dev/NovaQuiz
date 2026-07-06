@@ -11,8 +11,13 @@ function _relTime(iso) {
 
 function _md(text) {
   if (!text) return '';
-  if (window.marked) return window.marked.parse(text);
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const html = window.marked ? window.marked.parse(text) : escaped;
+  // Always sanitize before this feeds dangerouslySetInnerHTML — marked does NOT
+  // strip HTML, so raw <script>/onerror payloads in user comments would execute.
+  if (window.DOMPurify) return window.DOMPurify.sanitize(html);
+  // No sanitizer loaded → fall back to fully-escaped plain text, never raw HTML.
+  return escaped;
 }
 
 // ── Avatar ───────────────────────────────────────────────────────────────────

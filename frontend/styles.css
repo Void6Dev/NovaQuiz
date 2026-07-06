@@ -159,9 +159,11 @@ button { cursor: pointer; }
   grid-template-columns: 240px 1fr;
   height: 100vh;
   width: 100vw;
+  transition: grid-template-columns 220ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .app--no-sidebar { grid-template-columns: 1fr; }
+.app.sidebar-collapsed { grid-template-columns: 64px 1fr; }
 
 .sidebar {
   background: var(--bg-2);
@@ -170,6 +172,7 @@ button { cursor: pointer; }
   flex-direction: column;
   padding: 20px 14px;
   gap: 4px;
+  overflow: hidden;
 }
 
 .sidebar__logo {
@@ -180,6 +183,50 @@ button { cursor: pointer; }
   font-weight: 700;
   font-size: 17px;
   letter-spacing: -0.02em;
+}
+
+/* === Sidebar collapse toggle === */
+.sidebar__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-sm);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-faint);
+  flex-shrink: 0;
+  padding: 0;
+  transition: background 150ms var(--ease), color 150ms var(--ease);
+}
+.sidebar__toggle:hover { background: var(--surface); color: var(--text); }
+.sidebar:not(.sidebar--collapsed) .sidebar__toggle { margin-left: auto; }
+
+/* === Collapsed sidebar === */
+.sidebar--collapsed {
+  padding: 16px 10px;
+  align-items: center;
+}
+.sidebar--collapsed .sidebar__logo {
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 4px 16px;
+  align-items: center;
+  justify-content: center;
+}
+.sidebar--collapsed .nav-item {
+  margin-left: 0 !important;
+  width: 40px !important;
+  height: 36px;
+  padding: 0 !important;
+  justify-content: center;
+  border-left: none !important;
+  border-radius: var(--r-md) !important;
+}
+.sidebar--collapsed .nav-item--active {
+  background: oklch(from var(--accent) l c h / 0.10);
 }
 
 .sidebar__logo-mark {
@@ -667,6 +714,7 @@ button { cursor: pointer; }
 /* === Breakpoint: ≤ 1024px (tablets — narrow sidebar) === */
 @media (max-width: 1024px) and (min-width: 769px) {
   .app { grid-template-columns: 200px 1fr; }
+  .app.sidebar-collapsed { grid-template-columns: 64px 1fr; }
   .sidebar { padding: 16px 10px; }
   .page { padding: 24px 28px 48px; }
   .search { width: 240px; }
@@ -927,6 +975,8 @@ a:not(.nav-item):not(.btn):hover { opacity: 0.75; }
   pointer-events: none;
 }
 #splash.splash--has-sidebar { left: 240px; }
+html.sidebar-collapsed #splash.splash--has-sidebar,
+body.sidebar-collapsed #splash.splash--has-sidebar { left: 64px; }
 #splash__ring {
   width: 30px; height: 30px;
   border: 2.5px solid var(--border);

@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import date as date_type
 from functools import wraps
 from django.http import JsonResponse
@@ -24,6 +25,8 @@ from django.db.models import Count, F, Q, Sum
 from auth_sys.models import Account, PasswordResetToken, WorkspaceInvitation, Notification, QuizDeletion
 from quiz.models import Quiz, Question, Answer, PracticeRecord, UserStat, ActivityEntry, TopicStat, QuizVote, QuizComment, CommentVote
 from hosting.models import Session, SessionPlayer, PlayerAnswer, SessionTeam
+
+logger = logging.getLogger(__name__)
 
 
 def login_required(view_func):
@@ -70,6 +73,29 @@ def _user_data(user):
         'avatar': account.image.url if account and account.image else None,
         'avatar_transform': account.image_transform if account else '',
     }
+
+
+def _user_can_access_quiz(user, quiz):
+    """True if user may view a quiz's contents (questions/answers).
+    Public non-removed quizzes are open; private/removed ones need ownership,
+    workspace membership, or moderator rights."""
+    is_authed = bool(user and getattr(user, 'is_authenticated', False))
+    account = getattr(user, 'account', None) if is_authed else None
+    is_mod = is_authed and (user.is_superuser or (account and account.permission == 'moderator'))
+
+    if is_authed and quiz.creator_id == user.id:
+        return True
+    if is_mod:
+        return True
+    if quiz.is_removed:
+        return False
+    if quiz.is_public:
+        return True
+    if is_authed:
+        return WorkspaceInvitation.objects.filter(
+            from_user=quiz.creator, to_email=user.email, status='accepted'
+        ).exists()
+    return False
 
 
 def _quiz_data(quiz, user=None, include_stats=False):
@@ -204,13 +230,13 @@ def api_login(request):
     raw = (data.get('username') or '').strip()
     password = data.get('password', '')
 
-    # Allow login with email address
+    # Allow login with email address. Use filter().first() rather than get() —
+    # emails are not unique (social login can create collisions) so get() would 500.
     username = raw
     if '@' in raw:
-        try:
-            username = User.objects.get(email__iexact=raw).username
-        except User.DoesNotExist:
-            pass
+        match = User.objects.filter(email__iexact=raw).order_by('id').first()
+        if match:
+            username = match.username
 
     user = authenticate(request, username=username, password=password)
     if user is None:
@@ -229,6 +255,12 @@ def api_register(request):
 
     if not username or not password:
         return JsonResponse({'error': 'Username and password are required'}, status=400)
+    if len(password) < 6:
+        return JsonResponse({'error': 'Password must be at least 6 characters'}, status=400)
+    if email:
+        err = _validate_email(email)
+        if err:
+            return JsonResponse({'error': err}, status=400)
     if User.objects.filter(username=username).exists():
         return JsonResponse({'error': 'Username already taken'}, status=400)
 
@@ -317,10 +349,12 @@ def api_delete_account(request):
 def api_forgot_password(request):
     data = _json_body(request)
     email = data.get('email', '').strip().lower()
-    # Always return 200 to prevent email enumeration
-    try:
-        user = User.objects.get(email__iexact=email)
-    except User.DoesNotExist:
+    # Always return 200 to prevent email enumeration.
+    # filter().first() — emails are not unique, get() could raise MultipleObjectsReturned (500).
+    if not email:
+        return JsonResponse({'status': 'ok'})
+    user = User.objects.filter(email__iexact=email).order_by('id').first()
+    if not user:
         return JsonResponse({'status': 'ok'})
 
     token_obj = PasswordResetToken(user=user)
@@ -373,10 +407,9 @@ def api_reset_password(request):
 
 def _get_or_create_social_user(*, email, name='', username_hint=''):
     """Find existing user by email or create a new account from a social login."""
-    try:
-        return User.objects.get(email__iexact=email)
-    except User.DoesNotExist:
-        pass
+    existing = User.objects.filter(email__iexact=email).first()
+    if existing:
+        return existing
 
     base = (
         ''.join(c for c in username_hint if c.isalnum() or c in '_.')[:20]
@@ -468,11 +501,20 @@ def api_discord_auth(request):
         req = _req.Request(
             'https://discord.com/api/oauth2/token',
             data=token_body,
-            headers={'Content-Type': 'application/x-www-form-urlencoded'},
+            headers={
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'User-Agent': 'NovaQuiz/1.0 (OAuth bot)',
+                'Accept': 'application/json',
+            },
         )
         with _req.urlopen(req, timeout=8) as resp:
             token_resp = json.loads(resp.read())
-    except Exception:
+    except _req.HTTPError as e:
+        body = e.read().decode(errors='replace')
+        logger.warning('Discord token exchange HTTP %s: %s', e.code, body)
+        return JsonResponse({'error': 'Failed to exchange Discord code'}, status=400)
+    except Exception as e:
+        logger.warning('Discord token exchange error: %s', e)
         return JsonResponse({'error': 'Failed to exchange Discord code'}, status=400)
 
     access_token = token_resp.get('access_token')
@@ -483,7 +525,11 @@ def api_discord_auth(request):
     try:
         req = _req.Request(
             'https://discord.com/api/users/@me',
-            headers={'Authorization': f'Bearer {access_token}'},
+            headers={
+                'Authorization': f'Bearer {access_token}',
+                'User-Agent': 'NovaQuiz/1.0 (OAuth bot)',
+                'Accept': 'application/json',
+            },
         )
         with _req.urlopen(req, timeout=8) as resp:
             duser = json.loads(resp.read())
@@ -506,13 +552,30 @@ def api_discord_auth(request):
 _MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5 MB
 
 
+_ALLOWED_IMAGE_FORMATS = {'JPEG', 'PNG', 'GIF', 'WEBP', 'BMP'}
+
+
 def _validate_image(f):
     if not f:
         return 'No file provided'
-    if not f.content_type.startswith('image/'):
+    # content_type is attacker-controlled; don't trust it for anything but a first cut.
+    if not (f.content_type or '').startswith('image/'):
         return 'File must be an image'
     if f.size > _MAX_IMAGE_SIZE:
         return 'Image must be smaller than 5 MB'
+    # Verify the bytes actually decode as a raster image. This rejects SVG (which can
+    # carry <script> and would XSS when served from /media/) and disguised HTML/other files.
+    from PIL import Image
+    try:
+        f.seek(0)
+        img = Image.open(f)
+        img.verify()
+    except Exception:
+        return 'File is not a valid image'
+    finally:
+        f.seek(0)
+    if img.format not in _ALLOWED_IMAGE_FORMATS:
+        return 'Unsupported image format'
     return None
 
 
@@ -883,6 +946,8 @@ def api_quiz_delete(request, quiz_id):
 @login_required
 def api_quiz_duplicate(request, quiz_id):
     original = get_object_or_404(Quiz, id=quiz_id)
+    if not _user_can_access_quiz(request.user, original):
+        return JsonResponse({'error': 'Access denied'}, status=403)
     new_quiz = Quiz.objects.create(
         title=original.title + ' (copy)',
         topic=original.topic,
@@ -1139,6 +1204,8 @@ def api_session_list(request):
 def api_session_create(request):
     data = _json_body(request)
     quiz = get_object_or_404(Quiz, id=data.get('quiz_id'))
+    if not _user_can_access_quiz(request.user, quiz):
+        return JsonResponse({'error': 'Access denied'}, status=403)
     session = Session.objects.create(host=request.user, session=quiz)
     return JsonResponse(_session_data(session), status=201)
 
@@ -1230,8 +1297,10 @@ def api_session_question_status(request, session_id, question_id):
 def api_session_answer(request, session_id):
     data = _json_body(request)
     session = get_object_or_404(Session, id=session_id)
-    question = get_object_or_404(Question, id=data.get('question_id'))
-    answer = get_object_or_404(Answer, id=data.get('answer_id'))
+    # Scope question to the session's quiz and answer to that question, otherwise a
+    # player could submit any is_correct answer id from another quiz to farm points.
+    question = get_object_or_404(Question, id=data.get('question_id'), quiz=session.session)
+    answer = get_object_or_404(Answer, id=data.get('answer_id'), question=question)
 
     sp = get_object_or_404(SessionPlayer.objects.select_for_update(), session=session, user=request.user)
 

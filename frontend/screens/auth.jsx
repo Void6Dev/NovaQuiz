@@ -334,21 +334,26 @@ function _openPopup(url, name) {
     const popup = window.open(url, name, `width=${W},height=${H},left=${left},top=${top},resizable,scrollbars`);
     if (!popup) return reject(new Error('Popup blocked — please allow popups for this site and try again.'));
 
-    const onMsg = (e) => {
-      if (e.source !== popup) return;
+    // Discord sets Cross-Origin-Opener-Policy headers which null out window.opener
+    // in the popup. BroadcastChannel works regardless of COOP.
+    let settled = false;
+    const ch = new BroadcastChannel('nova-quiz-social-auth');
+
+    const done = (fn) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      ch.close();
+      fn();
+    };
+
+    ch.onmessage = (e) => {
       if (e.data?.type !== 'social-callback') return;
-      cleanup();
-      if (e.data.error) reject(new Error(e.data.error));
-      else resolve(e.data.code);
+      done(() => e.data.error ? reject(new Error(e.data.error)) : resolve(e.data.code));
     };
-    const poll = setInterval(() => {
-      if (popup.closed) { cleanup(); reject(new Error('Login cancelled')); }
-    }, 600);
-    const cleanup = () => {
-      clearInterval(poll);
-      window.removeEventListener('message', onMsg);
-    };
-    window.addEventListener('message', onMsg);
+
+    // Fallback: user closed the popup manually (5-min hard timeout)
+    const timer = setTimeout(() => done(() => reject(new Error('Login cancelled'))), 5 * 60 * 1000);
   });
 }
 
@@ -406,6 +411,8 @@ function SocialLoginButtons({ dividerLabel = 'or continue with', onSuccess }) {
     input?.focus();
   };
 
+  // Social/email sign-in temporarily disabled — flip DISABLED to false to re-enable.
+  const DISABLED = true;
   const buttons = [
     { name: 'Google',  icon: <GoogleSvg />,  onClick: handleGoogle  },
     { name: 'Discord', icon: <DiscordSvg />, onClick: handleDiscord },
@@ -421,13 +428,13 @@ function SocialLoginButtons({ dividerLabel = 'or continue with', onSuccess }) {
       </div>
       <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
         {buttons.map(({ name, icon, onClick }) => (
-          <Tooltip key={name} label={`Continue with ${name}`}>
+          <Tooltip key={name} label={DISABLED ? 'Coming soon' : `Continue with ${name}`}>
             <button
               type="button"
               className="social-sq"
-              onClick={onClick}
-              disabled={!!loading}
-              aria-label={`Continue with ${name}`}
+              onClick={DISABLED ? undefined : onClick}
+              disabled={DISABLED || !!loading}
+              aria-label={DISABLED ? `${name} sign-in coming soon` : `Continue with ${name}`}
               style={loading === name ? { opacity: 0.6 } : undefined}
             >
               {loading === name
@@ -471,6 +478,16 @@ function FormStyles() {
       }
       .social-sq:active {
         transform: translateY(0);
+        box-shadow: none;
+      }
+      .social-sq:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+      .social-sq:disabled:hover {
+        background: var(--surface);
+        border-color: var(--border);
+        transform: none;
         box-shadow: none;
       }
       @keyframes spin { to { transform: rotate(360deg); } }

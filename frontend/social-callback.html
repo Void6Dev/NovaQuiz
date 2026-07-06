@@ -42,13 +42,15 @@
         ? { type: 'social-callback', code }
         : { type: 'social-callback', error: error || 'Authorization denied' };
 
-      if (window.opener && !window.opener.closed) {
-        window.opener.postMessage(msg, location.origin);
-        window.close();
-      } else {
-        document.querySelector('p').textContent = 'This window can be closed.';
-        document.querySelector('.spinner').style.display = 'none';
-      }
+      // BroadcastChannel works even when window.opener is severed by
+      // Discord's Cross-Origin-Opener-Policy headers.
+      try {
+        const ch = new BroadcastChannel('nova-quiz-social-auth');
+        ch.postMessage(msg);
+        ch.close();
+      } catch (_) {}
+
+      window.close();
     })();
   </script>
 </body>

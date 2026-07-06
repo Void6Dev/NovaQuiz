@@ -18,6 +18,14 @@
     if (prefs.reduceMotion)  document.documentElement.classList.add('reduce-motion');
     if (prefs.compactDensity) document.documentElement.classList.add('compact');
   } catch (e) {}
+  try {
+    if (localStorage.getItem('quiz:sidebar-collapsed') === '1') {
+      document.documentElement.classList.add('sidebar-collapsed');
+      document.addEventListener('DOMContentLoaded', function () {
+        document.body.classList.add('sidebar-collapsed');
+      });
+    }
+  } catch (e) {}
 })();
 
 // === Design-tooling dev flag ===
